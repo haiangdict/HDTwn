@@ -452,7 +452,7 @@ const ETYMOLOGY_URL = './data/HLD-Etymology.csv';
 // 音檔：CSV 內只存檔名，實際網址＝ 基礎網址 + 子資料夾 + 檔名。
 // TODO：使用者的 Cloudflare 公開網域確定後，把下面這一行換成正確的網址即可，
 // 其餘程式碼完全不用改。目前先留空，音檔播放鍵會自動顯示為停用狀態。
-const AUDIO_BASE_URL = '';
+const AUDIO_BASE_URL = 'https://pub-44bec38ae2824f519a8519301efe3bd7.r2.dev';
 function lemmaAudioUrl(e) {
   if (!AUDIO_BASE_URL || !e.audioFile) return '';
   return AUDIO_BASE_URL + '/TWN/Lemmata/' + e.audioFile;
@@ -864,8 +864,8 @@ function buildDialDiffHtml(raw) {
   return toks.map(t => {
     const m = t.match(/^V(\d+)$/i);
     if (!m) return '';
-    const num = m[1];
-    return `<a class="dial-diff-badge" href="./maps/stub.html?id=${num}" target="_blank" rel="noopener" title="查看方言分布圖卡">${escapeHtml(t)}</a>`;
+    const num = String(parseInt(m[1], 10));
+    return `<a class="dial-diff-badge" href="./maps/${num}.html" target="_blank" rel="noopener" title="查看方言分布圖卡">${escapeHtml(t)}</a>`;
   }).join('');
 }
 

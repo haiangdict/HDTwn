@@ -50,7 +50,7 @@ hlddru-sheets-reader@hlddru.iam.gserviceaccount.com
 
 ## 三、待補項目
 
-網站已經可以完整運作（詞目瀏覽、搜尋、分類篩選、TL/POJ 切換等都已測試過），但下面兩項目前是先做成佔位設定，需要你補上實際值：
+網站已經可以完整運作（詞目瀏覽、搜尋、分類篩選、TL/POJ 切換等都已測試過），下面這項目前是先做成佔位設定，需要你補上實際值：
 
 ### 1. 音檔網域
 
@@ -68,20 +68,20 @@ const AUDIO_BASE_URL = 'https://audio.example.com';
 
 程式會自動組成 `https://audio.example.com/TWN/Lemmata/檔名.mp3`（詞目音檔）和 `https://audio.example.com/TWN/Examples/檔名.mp3`（例句音檔），不用再改其他地方。
 
-### 2. 方言分布圖卡連結
+### 2. 方言分布圖卡（已完成，不需要再處理）
 
-義項裡「方言差」欄位（如 `V743`）目前點下去會開一個新分頁，顯示「即將推出」的佔位頁面（`maps/stub.html`）。等 982 張圖卡系統確定部署位置後，有兩個做法：
+982 張「咬din」方言分布圖卡已經全部產生好，放在 `maps/1.html` ～ `maps/1002.html`（依詞卡編號命名，不是連續 1~982，中間有跳號）。義項裡「方言差」欄位（如 `V743`）點下去會直接開新分頁顯示對應圖卡（`maps/743.html`），不用再自己補檔案。
 
-- **最簡單**：如果圖卡系統最後就是放在這個網站底下的某個路徑（例如 `/maps/743.html`），把 `index.html` 裡 `buildDialDiffHtml()` 函式裡的
-  ```js
-  href="./maps/stub.html?id=${num}"
-  ```
-  改成
-  ```js
-  href="./maps/${num}.html"
-  ```
-  然後把 982 張圖卡檔案放進 `maps/` 資料夾即可。
-- **圖卡系統部署在別的網域**：把上面那行的 `href` 改成組合完整外部網址的邏輯，例如 `href="https://your-maps-site.com/card/${num}"`。
+字型和底圖都是共用資源，不是每張圖卡各自內嵌：
+
+- `fonts/jf-openhuninn-2.1-subset.woff2`、`fonts/rare-fallback.woff2`：跟詞典本體共用同一套字型檔（已經重新產生過，涵蓋詞典 + 982 張圖卡會用到的所有漢字，共 5,719 字，另外 40 個罕用字則用系統內建的思源宋體字型截取補足）。
+- `maps/assets/base-map.jpg`：982 張圖卡共用的台灣底圖圖片。
+
+如果之後圖卡系統想改部署到別的網域，只要把 `index.html` 裡 `buildDialDiffHtml()` 函式裡的
+```js
+href="./maps/${num}.html"
+```
+改成組合完整外部網址的邏輯即可，例如 `href="https://your-maps-site.com/card/${num}"`。
 
 ### 3. 版權聲明的資料來源
 

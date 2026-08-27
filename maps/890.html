@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>是｜台語詞彙方言分布圖卡 No.890 - HDTwn 海盎台語辭典</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+@font-face {
+  font-family: 'jf-openhuninn';
+  src: url('../fonts/jf-openhuninn-2.1-subset.woff2') format('woff2');
+  font-weight: 400; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'RareHanzi';
+  src: url('../fonts/rare-fallback.woff2') format('woff2');
+  font-weight: 400; font-style: normal; font-display: swap;
+}
+:root {
+  --bg: #0e0e0e;
+  --surface: #1a1a1a;
+  --surface2: #242424;
+  --border: #2e2e2e;
+  --accent: #207C55;
+  --accent2: #8bc4a8;
+  --text: #e8e4dc;
+  --muted: #8a8a8a;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--bg); color: var(--text);
+  font-family: 'jf-openhuninn', 'RareHanzi', 'Noto Serif TC', serif;
+  min-height: 100vh; display: flex; flex-direction: column;
+}
+header {
+  border-bottom: 1px solid var(--border);
+  padding: 16px 26px;
+  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;
+}
+.hdr-left { display: flex; align-items: center; gap: 16px; }
+.back-link {
+  font-family: 'Space Mono', monospace; font-size: .68rem; color: var(--muted);
+  text-decoration: none; border: 1px solid var(--border); border-radius: 20px;
+  padding: 5px 12px; transition: all .15s; white-space: nowrap;
+}
+.back-link:hover { color: var(--text); border-color: var(--accent2); }
+.logo-main { font-size: 1.15rem; font-weight: 900; letter-spacing: .04em; color: var(--accent); }
+.logo-sub { font-family: 'Space Mono', monospace; font-size: .58rem; color: var(--muted); letter-spacing: .08em; text-transform: uppercase; margin-top: 2px; }
+.toggle-group { display: flex; align-items: center; gap: 8px; }
+.toggle-label {
+  font-family: 'Space Mono', monospace; font-size: .6rem; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .1em;
+}
+.toggle-switch {
+  display: flex; border: 1px solid var(--border); border-radius: 18px;
+  overflow: hidden; background: var(--surface2);
+}
+.toggle-option {
+  flex: 1; text-align: center; padding: 7px 12px;
+  font-family: 'Space Mono', monospace; font-size: .74rem;
+  cursor: pointer; color: var(--muted); transition: all .15s; user-select: none;
+}
+.toggle-option:hover { color: var(--text); }
+.toggle-option.active { background: var(--accent); color: #fff; font-weight: 700; }
+
+.content { flex: 1; padding: 26px 32px; }
+.card-head { margin-bottom: 18px; }
+.card-idtag {
+  font-family: 'Space Mono', monospace; font-size: 1.05rem; font-weight: 700; color: var(--text);
+  letter-spacing: .06em; margin-bottom: 6px;
+}
+.card-title { font-size: 1.6rem; font-weight: 700; color: var(--accent); letter-spacing: .02em; }
+
+.card-body { display: flex; gap: 34px; flex-wrap: wrap; align-items: flex-start; }
+
+.map-wrap { position: relative; flex: 0 0 auto; }
+.map-wrap img { display: block; border-radius: 10px; border: 1px solid var(--border); }
+
+.region-marker { position: absolute; width: 0; height: 0; z-index: 5; }
+.region-dot { position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); width: 7px; height: 7px; border-radius: 50%; background: var(--accent); border: 1.5px solid #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.4); }
+.region-nums {
+  position: absolute; left: 6px; top: 0; transform: translateY(-50%);
+  font-family: 'Space Mono', monospace; font-size: 10.5px; font-weight: 700; color: #0d4a32;
+  background: rgba(255,255,255,.92); border-radius: 4px; padding: 1px 4px; line-height: 1.5;
+  white-space: nowrap; box-shadow: 0 1px 3px rgba(0,0,0,.4); vertical-align: super;
+}
+.voc-num { cursor: pointer; padding: 0 1px; border-radius: 2px; }
+.voc-num:hover { background: var(--accent); color: #fff; }
+.num-sep { color: #b8a; opacity: .5; }
+
+.word-table-wrap { flex: 1; min-width: 220px; }
+.word-table { width: 100%; border-collapse: collapse; font-size: .92rem; }
+.word-table caption { text-align: left; font-family: 'Space Mono', monospace; font-size: .62rem; color: var(--muted); text-transform: uppercase; letter-spacing: .1em; margin-bottom: 8px; }
+.word-table th {
+  text-align: left; font-family: 'Space Mono', monospace; font-size: .65rem; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .08em; border-bottom: 1px solid var(--border); padding: 6px 10px;
+}
+.word-table td { padding: 8px 10px; border-bottom: 1px solid var(--border); }
+.word-table tr:hover td { background: var(--surface2); }
+.wt-num { font-family: 'Space Mono', monospace; color: var(--accent2); font-weight: 700; width: 40px; }
+.wt-hanzi { font-size: 1.05rem; }
+
+#tooltip {
+  position: fixed; background: var(--surface2); border: 1px solid var(--accent2);
+  color: var(--text); padding: 7px 12px; border-radius: 8px; font-size: .82rem;
+  pointer-events: none; z-index: 999; opacity: 0; transition: opacity .12s; box-shadow: 0 4px 16px rgba(0,0,0,.5);
+  max-width: 240px;
+}
+#tooltip.show { opacity: 1; }
+#tooltip .tt-region { font-family: 'Space Mono', monospace; font-size: .6rem; color: var(--accent2); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 3px; }
+#tooltip .tt-rom { font-size: 1rem; color: #fff; }
+
+footer { border-top: 1px solid var(--border); padding: 10px 26px; font-family: 'Space Mono', monospace; font-size: .62rem; color: var(--muted); }
+
+@media (max-width: 720px) {
+  header { flex-direction: column; align-items: flex-start; }
+  .card-body { flex-direction: column; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="hdr-left">
+    <a class="back-link" href="../index.html">← 返回 HDTwn 辭典</a>
+    <div>
+      <div class="logo-main">咬 din</div>
+      <div class="logo-sub">台語詞彙腔口分布圖卡</div>
+    </div>
+  </div>
+  <div class="toggle-group">
+    <div class="toggle-label">羅馬字系統</div>
+    <div class="toggle-switch" id="romToggle">
+      <div class="toggle-option active" data-val="tl">TL</div>
+      <div class="toggle-option" data-val="poj">POJ</div>
+    </div>
+  </div>
+</header>
+
+<div class="content" id="content">
+  <div class="card-head">
+    <div class="card-idtag">詞卡 No. 890</div>
+    <div class="card-title">是</div>
+  </div>
+  <div class="card-body">
+    <div class="map-wrap" style="width:380px; height:536px;">
+      <img src="./assets/base-map.jpg" width="380" height="536" alt="台灣底圖">
+      <div class="region-marker" style="left:160.04705882352943px; top:196.7058823529412px;"><span class="region-dot"></span><span class="region-nums"><span class="voc-num" data-region="鹿港" data-tl="sǐ" data-poj="sǐ">3</span></span></div><div class="region-marker" style="left:292.8235294117647px; top:86.28235294117647px;"><span class="region-dot"></span><span class="region-nums"><span class="voc-num" data-region="三峽" data-tl="sī" data-poj="sī">3</span></span></div><div class="region-marker" style="left:306.2352941176471px; top:56.7764705882353px;"><span class="region-dot"></span><span class="region-nums"><span class="voc-num" data-region="臺北" data-tl="sī--lah" data-poj="sī--lah">4</span></span></div><div class="region-marker" style="left:329.4823529411765px; top:126.96470588235294px;"><span class="region-dot"></span><span class="region-nums"><span class="voc-num" data-region="宜蘭" data-tl="hènn / hiàu" data-poj="hèⁿ / hiàu">1</span><span class="num-sep">,</span><span class="voc-num" data-region="宜蘭" data-tl="hènn--lah" data-poj="hèⁿ--lah">2</span></span></div><div class="region-marker" style="left:131.88235294117646px; top:361.22352941176473px;"><span class="region-dot"></span><span class="region-nums"><span class="voc-num" data-region="臺南" data-tl="hènn--lah / hiàu" data-poj="hèⁿ--lah / hiàu">2</span></span></div><div class="region-marker" style="left:145.29411764705884px; top:400.11764705882354px;"><span class="region-dot"></span><span class="region-nums"><span class="voc-num" data-region="高雄" data-tl="hènn--lah" data-poj="hèⁿ--lah">2</span></span></div><div class="region-marker" style="left:56.59764705882353px; top:145.33882352941177px;"><span class="region-dot"></span><span class="region-nums"><span class="voc-num" data-region="金門" data-tl="tsiànn-sī" data-poj="chiàⁿ-sī">5</span></span></div><div class="region-marker" style="left:48.28235294117647px; top:274.49411764705883px;"><span class="region-dot"></span><span class="region-nums"><span class="voc-num" data-region="馬公" data-tl="hènn" data-poj="hèⁿ">1</span></span></div><div class="region-marker" style="left:231.5764705882353px; top:94.7764705882353px;"><span class="region-dot"></span><span class="region-nums"><span class="voc-num" data-region="新竹" data-tl="hènn" data-poj="hèⁿ">1</span><span class="num-sep">,</span><span class="voc-num" data-region="新竹" data-tl="sī" data-poj="sī">3</span><span class="num-sep">,</span><span class="voc-num" data-region="新竹" data-tl="hànn" data-poj="hàⁿ">6</span></span></div><div class="region-marker" style="left:196.7058823529412px; top:181.05882352941177px;"><span class="region-dot"></span><span class="region-nums"><span class="voc-num" data-region="臺中" data-tl="hēnn" data-poj="hēⁿ">1</span><span class="num-sep">,</span><span class="voc-num" data-region="臺中" data-tl="sī" data-poj="sī">3</span></span></div>
+    </div>
+    <div class="word-table-wrap">
+      <table class="word-table">
+        <caption>詞彙編號對照表</caption>
+        <thead><tr><th>編號</th><th>漢字</th></tr></thead>
+        <tbody id="wordTbody"><tr><td class="wt-num">1</td><td class="wt-hanzi">嘿</td></tr><tr><td class="wt-num">2</td><td class="wt-hanzi">嘿啦</td></tr><tr><td class="wt-num">3</td><td class="wt-hanzi">是</td></tr><tr><td class="wt-num">4</td><td class="wt-hanzi">是啦</td></tr><tr><td class="wt-num">5</td><td class="wt-hanzi">正是</td></tr><tr><td class="wt-num">6</td><td class="wt-hanzi">諾</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div id="tooltip"></div>
+
+<footer>咬din · 台語詞彙腔口分布圖卡 · HDTwn 海盎台語辭典附屬系統</footer>
+
+<script>
+const ROWS_TL = [{"n": 1, "h": "嘿"}, {"n": 2, "h": "嘿啦"}, {"n": 3, "h": "是"}, {"n": 4, "h": "是啦"}, {"n": 5, "h": "正是"}, {"n": 6, "h": "諾"}];
+const ROWS_POJ = [{"n": 1, "h": "嘿"}, {"n": 2, "h": "嘿啦"}, {"n": 3, "h": "是"}, {"n": 4, "h": "是啦"}, {"n": 5, "h": "正是"}, {"n": 6, "h": "諾"}];
+let romSystem = 'tl';
+
+function renderTable() {
+  const tbody = document.getElementById('wordTbody');
+  const rows = romSystem === 'tl' ? ROWS_TL : ROWS_POJ;
+  tbody.innerHTML = rows.map(r => `<tr><td class="wt-num">${r.n}</td><td class="wt-hanzi">${r.h}</td></tr>`).join('');
+}
+
+function attachTooltipHandlers() {
+  const tooltip = document.getElementById('tooltip');
+  document.querySelectorAll('.voc-num').forEach(el => {
+    el.addEventListener('mouseenter', (e) => showTooltip(el, e));
+    el.addEventListener('mousemove', (e) => positionTooltip(e));
+    el.addEventListener('mouseleave', () => tooltip.classList.remove('show'));
+  });
+}
+
+function showTooltip(el, e) {
+  const tooltip = document.getElementById('tooltip');
+  const region = el.dataset.region;
+  const rom = romSystem === 'tl' ? el.dataset.tl : el.dataset.poj;
+  tooltip.innerHTML = `<div class="tt-region">${region} · 編號 ${el.textContent}</div><div class="tt-rom">${rom}</div>`;
+  tooltip.classList.add('show');
+  positionTooltip(e);
+}
+
+function positionTooltip(e) {
+  const tooltip = document.getElementById('tooltip');
+  tooltip.style.left = (e.clientX + 14) + 'px';
+  tooltip.style.top = (e.clientY + 14) + 'px';
+}
+
+document.getElementById('romToggle').addEventListener('click', (e) => {
+  const opt = e.target.closest('.toggle-option');
+  if (!opt) return;
+  romSystem = opt.dataset.val;
+  document.querySelectorAll('#romToggle .toggle-option').forEach(o => o.classList.toggle('active', o === opt));
+  document.getElementById('tooltip').classList.remove('show');
+  renderTable();
+});
+
+renderTable();
+attachTooltipHandlers();
+</script>
+</body>
+</html>
