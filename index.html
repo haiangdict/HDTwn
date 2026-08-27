@@ -279,7 +279,7 @@ input[type="text"]::placeholder { color: var(--muted); }
 
 .lemma-top-row { display: flex; align-items: center; gap: 8px; }
 .lemma-line { color: var(--accent); letter-spacing: 0.01em; word-break: break-word; }
-.lemma-line-top { font-size: 1.18em; flex: 1; }
+.lemma-line-top { font-size: 1.18em; }
 .lemma-line-bottom { font-size: 0.86em; margin-top: 3px; opacity: 0.92; }
 .lemma-tag {
   font-family: 'Space Mono', monospace; font-size: 0.62em; font-weight: 400;
@@ -977,10 +977,11 @@ function renderSingleSense(lemma, s, idx, multi) {
   const tagHtml = s.tag ? `<span class="sense-tag">${escapeHtml(s.tag)}</span>` : '';
   const dialHtml = buildDialDiffHtml(s.dialDiff);
   const transHtml = text ? `<div class="sense-trans">${numHtml}${tagHtml}${escapeHtml(text)}${dialHtml}</div>` : (numHtml || tagHtml || dialHtml ? `<div class="sense-trans">${numHtml}${tagHtml}${dialHtml}</div>` : '');
+  const examplesHtml = renderExamplesForSense(lemma, s.senseId);
   const refsHtml = buildRefsHtml(s);
   const notesHtml = s.notes ? `<div class="ref-row"><span class="ref-label">附註</span>${escapeHtml(s.notes)}</div>` : '';
-  const examplesHtml = renderExamplesForSense(lemma, s.senseId);
-  return `<div class="sense-item">${transHtml}${refsHtml}${notesHtml}${examplesHtml}</div>`;
+  // 順序比照 HLDKor：翻譯/解釋 → 例句 → 近義詞/反義詞/相關詞 → 附註
+  return `<div class="sense-item">${transHtml}${examplesHtml}${refsHtml}${notesHtml}</div>`;
 }
 
 function buildDialDiffHtml(raw) {
@@ -1123,21 +1124,22 @@ function parseRefTokens(raw) {
   }).filter(Boolean);
 }
 
+// 近義詞/反義詞/相關詞的顯示內容：跟 HLDKor 不同，HDTwn 的義項欄位是「解釋」而非對應翻譯，
+// 不適合放在括號裡；改成放「被引用詞目本身」的漢字詞目／羅馬字，格式依左側選單的
+// 顯示順序(漢字優先/羅馬字優先)＋羅馬字系統(TL/POJ) 四選一決定，跟詞條卡片的上/下行邏輯一致：
+// 括號前面是依目前選單設定顯示的主要形式，括號內是另一種形式，僅供對照，不做超連結。
 function renderRefToken(tok) {
   const lemma = lemmataById[tok.lemmaId];
   if (!lemma) return null;
-  const wordText = escapeHtml(lemma.word);
-  let snippet = '';
-  if (tok.senseId) {
-    const arr = sensesByLemma[tok.lemmaId] || [];
-    const s = arr.find(x => x.senseId === tok.senseId);
-    if (s) snippet = pick(s.tl, s.poj);
-  }
-  const snippetHtml = snippet ? `（${escapeHtml(snippet)}）` : '';
+  const hanziText = escapeHtml(lemma.word);
+  const romText = escapeHtml(pick(lemma.tl, lemma.poj));
+  const primary = wordOrder === 'hanzi' ? hanziText : romText;
+  const secondary = wordOrder === 'hanzi' ? romText : hanziText;
+  const secondaryHtml = secondary ? `（${secondary}）` : '';
   if (lemma.type === NO_ENTRY_TYPE) {
-    return `<span class="ref-word">${wordText}</span>${snippetHtml}`;
+    return `<span class="ref-word">${primary}</span>${secondaryHtml}`;
   }
-  return `<a href="#lemma-${tok.lemmaId}" class="ref-word" onclick="event.preventDefault();jumpToLemma('${tok.lemmaId}')">${wordText}</a>${snippetHtml}`;
+  return `<a href="#lemma-${tok.lemmaId}" class="ref-word" onclick="event.preventDefault();jumpToLemma('${tok.lemmaId}')">${primary}</a>${secondaryHtml}`;
 }
 
 function buildRefsHtml(s) {
