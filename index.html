@@ -21,7 +21,9 @@
   --surface: #1a1a1a;
   --surface2: #242424;
   --border: #2e2e2e;
-  --accent: #207C55;
+  /* 夜間模式用較亮的綠色，確保文字在近黑底色上有足夠對比度（原本的品牌綠 #207C55
+     在深色背景上對比不足，長時間閱讀容易吃力）。淺色模式在下面 body.light 改回原本品牌綠。 */
+  --accent: #33A873;
   --accent2: #8bc4a8;
   --text: #e8e4dc;
   --muted: #777;
@@ -36,6 +38,7 @@ body.light {
   --border: #d4cfc8;
   --text: #1a1814;
   --muted: #666;
+  --accent: #207C55;
 }
 body.light header { background: rgba(245,243,239,0.96); }
 body.light .content-info { background: var(--bg); }
@@ -316,8 +319,8 @@ input[type="text"]::placeholder { color: var(--muted); }
   color: var(--muted); background: var(--surface2); border: 1px solid var(--border);
   border-radius: 10px; padding: 1px 8px; margin-right: 6px;
 }
-.ref-word { font-weight: 600; color: var(--text); text-decoration: none; }
-a.ref-word { color: var(--accent); cursor: pointer; }
+.ref-word { font-weight: 600; color: var(--accent); text-decoration: none; }
+a.ref-word { cursor: pointer; }
 a.ref-word:hover { text-decoration: underline; }
 
 /* ── EXAMPLE SENTENCES ── */
@@ -332,7 +335,81 @@ a.ref-word:hover { text-decoration: underline; }
 .example-sentence { flex: 1; color: var(--text); font-size: 1em; line-height: 1.7; }
 .example-sentence-sub { margin-top: 2px; opacity: 0.85; }
 .example-trans { margin-top: 4px; color: var(--text); opacity: 0.85; font-size: 0.92em; line-height: 1.6; padding-right: 40px; }
-.term-highlight { color: var(--accent); font-weight: 600; margin: 0 0.15em; }
+.term-highlight { color: var(--accent); }
+
+/* ── 方言差側邊面板（點徽章時內嵌顯示於右側，不跳頁、不擋住左側操作，
+     這樣才能一邊切換主頁面的 TL/POJ、一邊看面板同步更新） ── */
+#dialPanel {
+  position: fixed; top: 0; right: 0; bottom: 0;
+  width: 420px; max-width: 92vw;
+  background: var(--surface); border-left: 1px solid var(--border);
+  box-shadow: -8px 0 24px rgba(0,0,0,0.35);
+  z-index: 301;
+  transform: translateX(100%);
+  transition: transform 0.25s ease;
+  display: flex; flex-direction: column;
+}
+#dialPanel.open { transform: translateX(0); }
+.dial-panel-hdr {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 10px;
+  padding: 16px 18px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.dial-panel-idtag {
+  font-family: 'Space Mono', monospace; font-size: 0.72rem; font-weight: 700;
+  color: var(--muted); letter-spacing: 0.06em; margin-bottom: 4px;
+}
+.dial-panel-title { font-size: 1.2rem; font-weight: 700; color: var(--accent); }
+.dial-panel-close {
+  background: none; border: 1px solid var(--border); color: var(--muted);
+  width: 28px; height: 28px; border-radius: 50%; cursor: pointer;
+  font-size: 0.85rem; flex-shrink: 0; transition: all 0.15s;
+}
+.dial-panel-close:hover { color: var(--text); border-color: var(--accent2); }
+.dial-panel-body { flex: 1; overflow-y: auto; padding: 16px 18px; }
+.dial-panel-maplabel {
+  font-family: 'Space Mono', monospace; font-size: 0.6rem; color: var(--muted);
+  text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 8px;
+}
+.dial-map-wrap { position: relative; margin: 0 auto 18px; max-width: 100%; }
+.dial-map-wrap img { display: block; width: 100%; height: auto; border-radius: 8px; border: 1px solid var(--border); }
+.region-marker { position: absolute; width: 0; height: 0; z-index: 5; }
+.region-dot { position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); width: 7px; height: 7px; border-radius: 50%; background: var(--accent); border: 1.5px solid #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.4); }
+.region-nums {
+  position: absolute; left: 6px; top: 0; transform: translateY(-50%);
+  font-family: 'Space Mono', monospace; font-size: 10.5px; font-weight: 700; color: #0d4a32;
+  background: rgba(255,255,255,.92); border-radius: 4px; padding: 1px 4px; line-height: 1.5;
+  white-space: nowrap; box-shadow: 0 1px 3px rgba(0,0,0,.4);
+}
+.voc-num { cursor: pointer; padding: 0 1px; border-radius: 2px; }
+.voc-num:hover { background: var(--accent); color: #fff; }
+.num-sep { color: var(--muted); opacity: .6; }
+.word-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
+.word-table caption { text-align: left; font-family: 'Space Mono', monospace; font-size: 0.62rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 8px; }
+.word-table th {
+  text-align: left; font-family: 'Space Mono', monospace; font-size: 0.65rem; color: var(--muted);
+  text-transform: uppercase; letter-spacing: 0.08em; border-bottom: 1px solid var(--border); padding: 6px 8px;
+}
+.word-table td { padding: 7px 8px; border-bottom: 1px solid var(--border); color: var(--text); }
+.word-table tr:hover td { background: var(--surface2); }
+.wt-num { font-family: 'Space Mono', monospace; color: var(--accent2); font-weight: 700; width: 40px; }
+.wt-hanzi { font-size: 1.02rem; }
+#dialTooltip {
+  position: fixed; background: var(--surface2); border: 1px solid var(--accent2);
+  color: var(--text); padding: 7px 12px; border-radius: 8px; font-size: 0.82rem;
+  pointer-events: none; z-index: 999; opacity: 0; transition: opacity .12s; box-shadow: 0 4px 16px rgba(0,0,0,.5);
+  max-width: 240px;
+}
+#dialTooltip.show { opacity: 1; }
+#dialTooltip .tt-region { font-family: 'Space Mono', monospace; font-size: 0.6rem; color: var(--accent2); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 3px; }
+#dialTooltip .tt-rom { font-size: 1rem; }
+
+/* 面板開啟時把主要內容區往左讓開，避免例句等內容被面板蓋住看不到 */
+body.dial-open .main { margin-right: 420px; transition: margin-right 0.25s ease; }
+
+@media (max-width: 640px) {
+  #dialPanel { width: 100%; max-width: 100%; }
+  body.dial-open .main { margin-right: 0; }
+}
 
 /* ── PLAY BUTTON ── */
 .play-btn {
@@ -439,6 +516,18 @@ a.ref-word:hover { text-decoration: underline; }
 
 <button id="scrollTopBtn" onclick="scrollContentToTop()" title="跳至最上方">↑</button>
 <div id="toast"></div>
+
+<div id="dialPanel">
+  <div class="dial-panel-hdr">
+    <div>
+      <div class="dial-panel-idtag" id="dialPanelIdtag"></div>
+      <div class="dial-panel-title" id="dialPanelTitle"></div>
+    </div>
+    <button class="dial-panel-close" onclick="closeDialPanel()" title="關閉">✕</button>
+  </div>
+  <div class="dial-panel-body" id="dialPanelBody"></div>
+</div>
+<div id="dialTooltip"></div>
 
 <script>
 // ══════════════════════════════════════════════════════════════════
@@ -552,6 +641,28 @@ function escapeHtml(s) {
   return (s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
+// 例句關鍵字提示：把例句(漢字/TL/POJ)裡跟該詞目本身完全相同的子字串標出來，
+// 只改變文字顏色，不加底色/粗體。目前用最直接的完整子字串比對（不分大小寫）；
+// 如果之後遇到例句用詞目的變體、省略形等比對不到的情況，可以再另外準備一份
+// 專門用來比對高亮位置的欄位（跟 HLDKor 做法一樣）。
+function highlightTerm(rawText, rawTerm) {
+  const text = rawText || '';
+  const term = (rawTerm || '').trim();
+  if (!term) return escapeHtml(text);
+  const lowerText = text.toLowerCase();
+  const lowerTerm = term.toLowerCase();
+  let result = '';
+  let i = 0;
+  while (i < text.length) {
+    const idx = lowerText.indexOf(lowerTerm, i);
+    if (idx === -1) { result += escapeHtml(text.slice(i)); break; }
+    result += escapeHtml(text.slice(i, idx));
+    result += '<span class="term-highlight">' + escapeHtml(text.slice(idx, idx + term.length)) + '</span>';
+    i = idx + term.length;
+  }
+  return result;
+}
+
 // TL/POJ 擇一顯示：POJ 若無內容但 TL 有，視為 POJ=TL；兩者皆空才完全不顯示
 function pick(tl, poj) {
   tl = (tl || '').trim();
@@ -561,20 +672,23 @@ function pick(tl, poj) {
 }
 
 // 字母索引：一律以 TL 拼音的字首分組（不隨 TL/POJ 切換而改變分頁），
-// 去除聲調符號只用於分組，顯示內容不受影響。
-const TONE_STRIP_MAP = { 'á':'a','à':'a','â':'a','ā':'a','ǎ':'a','a̍':'a',
-  'é':'e','è':'e','ê':'e','ē':'e','ě':'e',
-  'í':'i','ì':'i','î':'i','ī':'i','ǐ':'i',
-  'ó':'o','ò':'o','ô':'o','ō':'o','ǒ':'o',
-  'ú':'u','ù':'u','û':'u','ū':'u','ǔ':'u',
-  'ń':'n','ǹ':'n' };
+// 去除聲調符號只用於分組/排序，顯示內容不受影響。
+// 用 NFD 分解＋移除組合聲調符號，涵蓋所有調號（陰平～陽入，包含 8 調的豎線符號），
+// 不用再一個個列出對照表。
+function stripDiacritics(s) {
+  return (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '');
+}
 function firstLetter(tl) {
-  let w = (tl || '').trim().normalize('NFC');
+  let w = stripDiacritics((tl || '').trim()).toLowerCase();
   if (!w) return '#';
-  let ch = w[0].toLowerCase();
-  ch = TONE_STRIP_MAP[ch] || ch;
+  const ch = w[0];
   if (!/[a-z]/.test(ch)) return '#';
   return ch;
+}
+// 完整羅馬字排序鍵：同一字母分組內，依整串 TL 拼音（去聲調、小寫）比較，
+// 才能得到跟一般台語辭典一致的字母順序，而不是只看字首、其餘照編號排。
+function romSortKey(tl) {
+  return stripDiacritics((tl || '').trim()).toLowerCase();
 }
 function sortLetters(letters) {
   return letters.slice().sort((a, b) => {
@@ -631,7 +745,12 @@ async function loadData() {
       lemmataById[id] = e;
       if (e.type !== NO_ENTRY_TYPE) entries.push(e);
     });
-    entries.sort((a, b) => parseInt(a.id, 10) - parseInt(b.id, 10));
+    entries.forEach(e => { e.sortKey = romSortKey(e.tl); });
+    entries.sort((a, b) => {
+      if (a.sortKey < b.sortKey) return -1;
+      if (a.sortKey > b.sortKey) return 1;
+      return parseInt(a.id, 10) - parseInt(b.id, 10);
+    });
     ALL_CATEGORIES = [...categorySet].sort();
     selectedCategories = new Set(ALL_CATEGORIES);
 
@@ -729,8 +848,8 @@ function buildSidebar() {
   <div class="toggle-group">
     <div class="toggle-label">羅馬字系統</div>
     <div class="toggle-switch">
-      <div class="toggle-option ${romSystem === 'TL' ? 'active' : ''}" onclick="setRomSystem('TL')">TL 台羅</div>
-      <div class="toggle-option ${romSystem === 'POJ' ? 'active' : ''}" onclick="setRomSystem('POJ')">POJ 白話字</div>
+      <div class="toggle-option ${romSystem === 'TL' ? 'active' : ''}" onclick="setRomSystem('TL')">TL</div>
+      <div class="toggle-option ${romSystem === 'POJ' ? 'active' : ''}" onclick="setRomSystem('POJ')">POJ</div>
     </div>
   </div>
   <div class="sb-divider"></div>`;
@@ -769,7 +888,13 @@ function buildSidebar() {
 }
 
 function setWordOrder(val) { wordOrder = val; buildSidebar(); renderContent(); }
-function setRomSystem(val) { romSystem = val; buildSidebar(); renderContent(); }
+function setRomSystem(val) {
+  romSystem = val; buildSidebar(); renderContent();
+  // 方言差面板若正開著，同步切換成主頁面目前選的 TL/POJ，不需要在面板裡另外切換
+  if (dialPanelCurrentId && dialCardsById && dialCardsById[dialPanelCurrentId]) {
+    renderDialPanelBody(dialCardsById[dialPanelCurrentId]);
+  }
+}
 function toggleAzSection() { azSectionOpen = !azSectionOpen; buildSidebar(); }
 function toggleCategorySection() { categorySectionOpen = !categorySectionOpen; buildSidebar(); }
 function toggleCategory(cat) {
@@ -834,19 +959,19 @@ function renderLemmaCard(e) {
           onclick="togglePlay('${url.replace(/'/g, "\\'")}', this)">${hasAudio ? '▶' : '—'}</button>
       </div>
       <div class="lemma-line lemma-line-bottom">${bottomHtml}</div>
-      ${renderSenseSection(e.id)}
+      ${renderSenseSection(e)}
     </div>`;
 }
 
-function renderSenseSection(lemmaId) {
-  const senses = sensesByLemma[lemmaId];
+function renderSenseSection(lemma) {
+  const senses = sensesByLemma[lemma.id];
   if (!senses || !senses.length) return '';
   const multi = senses.length > 1;
-  const items = senses.map((s, i) => renderSingleSense(s, i, multi)).join('');
+  const items = senses.map((s, i) => renderSingleSense(lemma, s, i, multi)).join('');
   return `<div class="sense-list ${multi ? 'multi' : ''}">${items}</div>`;
 }
 
-function renderSingleSense(s, idx, multi) {
+function renderSingleSense(lemma, s, idx, multi) {
   const text = pick(s.tl, s.poj);
   const numHtml = multi ? `<span class="sense-num">${idx + 1}.</span>` : '';
   const tagHtml = s.tag ? `<span class="sense-tag">${escapeHtml(s.tag)}</span>` : '';
@@ -854,7 +979,7 @@ function renderSingleSense(s, idx, multi) {
   const transHtml = text ? `<div class="sense-trans">${numHtml}${tagHtml}${escapeHtml(text)}${dialHtml}</div>` : (numHtml || tagHtml || dialHtml ? `<div class="sense-trans">${numHtml}${tagHtml}${dialHtml}</div>` : '');
   const refsHtml = buildRefsHtml(s);
   const notesHtml = s.notes ? `<div class="ref-row"><span class="ref-label">附註</span>${escapeHtml(s.notes)}</div>` : '';
-  const examplesHtml = renderExamplesForSense(s.lemmaId, s.senseId);
+  const examplesHtml = renderExamplesForSense(lemma, s.senseId);
   return `<div class="sense-item">${transHtml}${refsHtml}${notesHtml}${examplesHtml}</div>`;
 }
 
@@ -865,8 +990,128 @@ function buildDialDiffHtml(raw) {
     const m = t.match(/^V(\d+)$/i);
     if (!m) return '';
     const num = String(parseInt(m[1], 10));
-    return `<a class="dial-diff-badge" href="./maps/${num}.html" target="_blank" rel="noopener" title="查看方言分布圖卡">${escapeHtml(t)}</a>`;
+    return `<span class="dial-diff-badge" role="button" tabindex="0" title="查看方言分布圖卡"
+      onclick="openDialPanel('${num}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openDialPanel('${num}')}">${escapeHtml(t)}</span>`;
   }).join('');
+}
+
+// ══════════════════════════════════════════════════════════════════
+// 方言差側邊面板（咬din 圖卡資料，內嵌顯示於右側，不跳頁）
+// ══════════════════════════════════════════════════════════════════
+const DIAL_IMG_W = 850, DIAL_IMG_H = 1200, DIAL_DISPLAY_W = 380;
+const DIAL_SCALE = DIAL_DISPLAY_W / DIAL_IMG_W;
+const DIAL_DISPLAY_H = Math.round(DIAL_IMG_H * DIAL_SCALE);
+const DIAL_REGION_PIXELS = {"三峽": [655.0, 193.0], "宜蘭": [737.0, 284.0], "新竹": [518.0, 212.0], "臺中": [440.0, 405.0], "臺北": [685.0, 127.0], "臺南": [295.0, 808.0], "高雄": [325.0, 895.0], "鹿港": [358.0, 440.0], "金門": [126.6, 325.1], "馬公": [108.0, 614.0]};
+
+let dialCardsById = null;     // 編號 -> 圖卡物件，惰性載入（第一次點方言差徽章時才抓）
+let dialCardsLoading = null;
+let dialPanelCurrentId = null; // 目前面板顯示的圖卡編號；面板關閉時為 null
+
+async function ensureDialCardsLoaded() {
+  if (dialCardsById) return dialCardsById;
+  if (dialCardsLoading) return dialCardsLoading;
+  dialCardsLoading = (async () => {
+    const res = await fetch('./maps/data/cards.json', { cache: 'force-cache' });
+    const arr = await res.json();
+    const byId = {};
+    arr.forEach(c => { byId[c.id] = c; });
+    dialCardsById = byId;
+    return byId;
+  })();
+  return dialCardsLoading;
+}
+
+async function openDialPanel(id) {
+  dialPanelCurrentId = id;
+  document.getElementById('dialPanel').classList.add('open');
+  document.body.classList.add('dial-open');
+  setTimeout(layoutLetterGrids, 260);
+  document.getElementById('dialPanelIdtag').textContent = '';
+  document.getElementById('dialPanelTitle').textContent = '';
+  document.getElementById('dialPanelBody').innerHTML = `<div class="empty"><div class="empty-icon">⟳</div><div>載入中…</div></div>`;
+  try {
+    const byId = await ensureDialCardsLoaded();
+    if (dialPanelCurrentId !== id) return; // 載入完成前使用者已切換到別張圖卡或關閉面板
+    const card = byId[id];
+    if (!card) {
+      document.getElementById('dialPanelBody').innerHTML = `<div class="empty"><div class="empty-icon">⚠</div><div>找不到編號 ${escapeHtml(id)} 的圖卡</div></div>`;
+      return;
+    }
+    renderDialPanelBody(card);
+  } catch (err) {
+    console.error(err);
+    document.getElementById('dialPanelBody').innerHTML = `<div class="empty"><div class="empty-icon">⚠</div><div>圖卡資料載入失敗</div></div>`;
+  }
+}
+
+function closeDialPanel() {
+  dialPanelCurrentId = null;
+  document.getElementById('dialPanel').classList.remove('open');
+  document.getElementById('dialTooltip').classList.remove('show');
+  document.body.classList.remove('dial-open');
+  setTimeout(layoutLetterGrids, 260);
+}
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && dialPanelCurrentId !== null) closeDialPanel();
+});
+
+function renderDialPanelBody(card) {
+  document.getElementById('dialPanelIdtag').textContent = '詞卡 No. ' + (card.id.length >= 3 ? card.id : card.id.padStart(3, '0'));
+  document.getElementById('dialPanelTitle').textContent = card.sub;
+
+  let markersHtml = '';
+  for (const [region, list] of Object.entries(card.rm)) {
+    const px = DIAL_REGION_PIXELS[region];
+    if (!px) continue;
+    const rx = px[0] * DIAL_SCALE, ry = px[1] * DIAL_SCALE;
+    const numsHtml = list.map((it, idx) => {
+      const sep = idx > 0 ? '<span class="num-sep">,</span>' : '';
+      return `${sep}<span class="voc-num" data-region="${escapeHtml(region)}" data-tl="${escapeHtml(it.tl)}" data-poj="${escapeHtml(it.poj)}">${it.n}</span>`;
+    }).join('');
+    markersHtml += `<div class="region-marker" style="left:${rx}px; top:${ry}px;"><span class="region-dot"></span><span class="region-nums">${numsHtml}</span></div>`;
+  }
+
+  const rows = card.words.map(w => {
+    const disp = romSystem === 'TL' ? w.h_tl : w.h_poj;
+    return `<tr><td class="wt-num">${w.n}</td><td class="wt-hanzi">${escapeHtml(disp)}</td></tr>`;
+  }).join('');
+
+  document.getElementById('dialPanelBody').innerHTML = `
+    <div class="dial-panel-maplabel">腔口分布</div>
+    <div class="dial-map-wrap" style="width:${DIAL_DISPLAY_W}px; height:${DIAL_DISPLAY_H}px;">
+      <img src="./maps/assets/base-map.jpg" width="${DIAL_DISPLAY_W}" height="${DIAL_DISPLAY_H}" alt="台灣底圖">
+      ${markersHtml}
+    </div>
+    <table class="word-table">
+      <caption>詞彙編號對照表</caption>
+      <thead><tr><th>編號</th><th>漢字</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
+  attachDialTooltipHandlers();
+}
+
+function attachDialTooltipHandlers() {
+  const tooltip = document.getElementById('dialTooltip');
+  document.querySelectorAll('#dialPanelBody .voc-num').forEach(el => {
+    el.addEventListener('mouseenter', (e) => showDialTooltip(el, e));
+    el.addEventListener('mousemove', (e) => positionDialTooltip(e));
+    el.addEventListener('mouseleave', () => tooltip.classList.remove('show'));
+  });
+}
+function showDialTooltip(el, e) {
+  const tooltip = document.getElementById('dialTooltip');
+  const region = el.dataset.region;
+  const rom = romSystem === 'TL' ? el.dataset.tl : el.dataset.poj;
+  tooltip.innerHTML = `<div class="tt-region">${escapeHtml(region)} · 編號 ${el.textContent}</div><div class="tt-rom">${escapeHtml(rom)}</div>`;
+  tooltip.classList.add('show');
+  positionDialTooltip(e);
+}
+function positionDialTooltip(e) {
+  const tooltip = document.getElementById('dialTooltip');
+  tooltip.style.left = (e.clientX + 14) + 'px';
+  tooltip.style.top = (e.clientY + 14) + 'px';
 }
 
 function parseRefTokens(raw) {
@@ -930,16 +1175,17 @@ function jumpToLemma(lemmaId) {
 // ══════════════════════════════════════════════════════════════════
 // 例句渲染
 // ══════════════════════════════════════════════════════════════════
-function renderExamplesForSense(lemmaId, senseId) {
-  const list = examplesBySense[lemmaId + '_' + senseId];
+function renderExamplesForSense(lemma, senseId) {
+  const list = examplesBySense[lemma.id + '_' + senseId];
   if (!list || !list.length) return '';
-  return list.map(renderExampleBlock).join('');
+  return list.map(ex => renderExampleBlock(lemma, ex)).join('');
 }
 
-function renderExampleBlock(ex) {
-  const hanziHtml = escapeHtml(ex.sentence);
+function renderExampleBlock(lemma, ex) {
+  const hanziHtml = highlightTerm(ex.sentence, lemma.word);
   const romText = romSystem === 'TL' ? ex.sentenceTL : (ex.sentencePOJ || ex.sentenceTL);
-  const romHtml = escapeHtml(romText || '');
+  const romTerm = romSystem === 'TL' ? lemma.tl : (lemma.poj || lemma.tl);
+  const romHtml = highlightTerm(romText || '', romTerm);
   let topHtml, bottomHtml;
   if (wordOrder === 'hanzi') {
     topHtml = hanziHtml;
@@ -1104,14 +1350,12 @@ function toggleExact() {
   if (searchQuery) { renderContent(); layoutLetterGrids(); }
 }
 function toggleScope(kind) {
-  if (searchScope.lemma && searchScope.example) {
-    searchScope = { lemma: false, example: false };
-    searchScope[kind] = true;
-  } else if (searchScope[kind]) {
-    searchScope.lemma = true; searchScope.example = true;
-  } else {
-    searchScope[kind] = true;
-  }
+  // 每個範圍(詞目/例句)各自獨立勾選/取消，唯一限制是不能兩者同時取消
+  // (那樣搜尋範圍會變成空集合，等於永遠搜不到東西)。
+  const other = kind === 'lemma' ? 'example' : 'lemma';
+  const next = !searchScope[kind];
+  if (!next && !searchScope[other]) return; // 不允許兩者都關閉
+  searchScope[kind] = next;
   document.getElementById('scope-lemma').classList.toggle('active', searchScope.lemma);
   document.getElementById('scope-example').classList.toggle('active', searchScope.example);
   if (searchQuery) { renderContent(); layoutLetterGrids(); }
