@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>方言分布圖卡｜HDTwn</title>
+<style>
+@font-face {
+  font-family: 'jf-openhuninn';
+  src: url('../fonts/jf-openhuninn-2.1-subset.woff2') format('woff2');
+  font-weight: 400; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'RareHanzi';
+  src: url('../fonts/rare-fallback.woff2') format('woff2');
+  font-weight: 400; font-style: normal; font-display: swap;
+}
+:root { --bg:#0e0e0e; --surface:#1a1a1a; --border:#2e2e2e; --accent:#207C55; --text:#e8e4dc; --muted:#888; }
+* { box-sizing:border-box; margin:0; padding:0; }
+body {
+  background:var(--bg); color:var(--text);
+  font-family:'jf-openhuninn','RareHanzi','Noto Serif TC',serif;
+  min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px;
+}
+.card {
+  background:var(--surface); border:1px solid var(--border); border-radius:14px;
+  padding:40px 36px; max-width:420px; text-align:center;
+}
+.badge {
+  display:inline-block; font-family:'Space Mono',monospace; font-size:0.8rem; font-weight:700;
+  color:var(--accent); border:1px solid var(--accent); border-radius:12px; padding:3px 14px; margin-bottom:18px;
+}
+h1 { font-size:1.3rem; margin-bottom:10px; }
+p { color:var(--muted); font-size:0.9rem; line-height:1.7; }
+a.back { display:inline-block; margin-top:22px; font-family:'Space Mono',monospace; font-size:0.72rem;
+  color:var(--muted); text-decoration:none; border:1px solid var(--border); border-radius:20px; padding:6px 16px; }
+a.back:hover { color:var(--accent); border-color:var(--accent); }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="badge" id="idBadge">V---</div>
+    <h1>方言分布圖卡即將推出</h1>
+    <p>此詞彙的方言分布圖卡正在製作中，完成後將直接連結到此頁面。</p>
+    <a class="back" href="javascript:window.close()">關閉此頁</a>
+  </div>
+  <script>
+    const id = new URLSearchParams(location.search).get('id');
+    if (id) document.getElementById('idBadge').textContent = 'V' + id;
+  </script>
+</body>
+</html>

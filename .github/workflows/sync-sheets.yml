@@ -1,0 +1,43 @@
+name: Sync Google Sheets data
+
+on:
+  schedule:
+    # 每 6 小時跑一次（UTC 時間 0,6,12,18 點）。要改頻率就改這行的 cron 表達式。
+    - cron: '0 */6 * * *'
+  workflow_dispatch: {}   # 允許在 GitHub 網頁上手動按一下立刻執行
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install google-api-python-client google-auth
+
+      - name: Sync CSVs from Google Sheets
+        id: sync
+        env:
+          GOOGLE_SERVICE_ACCOUNT_KEY: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_KEY }}
+        run: python3 scripts/sync_sheets.py
+
+      - name: Commit changes if any
+        run: |
+          git config user.name "hdtwn-sync-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add data/*.csv
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "chore: sync data from Google Sheets"
+            git push
+          fi
