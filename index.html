@@ -1235,7 +1235,7 @@ function positionDialTooltip(e) {
 function parseRefTokens(raw) {
   if (!raw) return [];
   return raw.split('|').map(t => t.trim()).filter(Boolean).map(tok => {
-    const m = tok.match(/^(\d+)(?:\*(\d+))?$/);
+    const m = tok.match(/^(\d+)(?:[*#](\d+))?$/);
     if (!m) return null;
     return { lemmaId: m[1], senseId: m[2] || null };
   }).filter(Boolean);
