@@ -33,7 +33,7 @@ SHEETS = [
     },
     {
         'spreadsheetId': '1_7ylGQXn49CDqxwd559N2d8iva6lJveqUNjr4UF728M',
-        'sheetName': 'TWN_Senses',
+        'sheetName': 'TWN-Senses',
         'outFile': 'TWN-Senses.csv',
     },
     {
