@@ -677,29 +677,80 @@ function pick(tl, poj) {
   return poj || tl;
 }
 
-// 字母索引：一律以 TL 拼音的字首分組（不隨 TL/POJ 切換而改變分頁），
-// 去除聲調符號只用於分組/排序，顯示內容不受影響。
-// 用 NFD 分解＋移除組合聲調符號，涵蓋所有調號（陰平～陽入，包含 8 調的豎線符號），
-// 不用再一個個列出對照表。
-function stripDiacritics(s) {
-  return (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '');
+// 字母索引 / 排序：改用 TL/N.、POJ/N.（調號拼音）欄位，隨左側目前選取的
+// TL/POJ 隨之變動（不再固定用 TL 分組）。規則（依使用者指定）：
+// (1) 音節先比較「不含調號數字的拼字部分」，拼字相同再比調號數字（小者優先）；
+//     若仍相同，改依詞語第一個漢字排序；若還是無法決定，才往下一個音節比較。
+// (2) 詞首若為「--」，直接忽視該記號、照常排序。
+// (3) 詞中的「-」視同空格，等於拆成下一個音節。
+// (4) 選 POJ 時，o͘（o + U+0358 COMBINING DOT ABOVE RIGHT）是獨立於 o 的字母，
+//     排序/字母索引都要分開（因此 POJ 模式下左邊字母表會比 TL 多一欄）。
+const OU_DOT = 'o͘'; // POJ 專用「o͘」，用於字母索引 bucket key
+
+// 把「TL/N.」或「POJ/N.」欄位值拆成排序用的音節陣列：
+// 取「/」分隔的第一個候選讀音 → 去除詞首「--」→ 依空白或「-」拆音節 →
+// 每個音節拆成「拼字（小寫）＋調號數字」。
+// POJ 模式下把 o͘ 換成 "o~"：'~' 的字元碼大於任何小寫字母、小於 'p'，
+// 使得 o͘ 開頭的音節排在所有 o?? 之後、p?? 之前，且不影響其餘比較結果。
+function parseSortSyllables(raw, pojMode) {
+  let s = (raw || '').trim();
+  if (!s) return [];
+  s = s.split('/')[0].trim();
+  if (!s) return [];
+  if (s.startsWith('--')) s = s.slice(2);
+  const parts = s.split(/[\s-]+/).map(p => p.trim()).filter(Boolean);
+  return parts.map(p => {
+    const m = p.match(/^(.*?)(\d+)$/);
+    let base = (m ? m[1] : p).toLowerCase();
+    const toneStr = m ? m[2] : '';
+    if (pojMode) base = base.split(OU_DOT).join('o~');
+    return { base, key: base + toneStr };
+  });
 }
-function firstLetter(tl) {
-  let w = stripDiacritics((tl || '').trim()).toLowerCase();
-  if (!w) return '#';
-  const ch = w[0];
+
+// 依目前 romSystem 取出某詞目已預先算好的排序音節陣列
+function getSortSyllables(e) {
+  return romSystem === 'TL' ? e.tlSyl : e.pojSyl;
+}
+
+// 字母索引 bucket key：取第一個音節的拼字部分首字；POJ 模式下 o͘ 開頭的
+// 音節回傳特殊 key（OU_DOT），跟一般字母分開一欄；沒有可用音節則歸入 '#'。
+function getLetterKey(e) {
+  const syl = getSortSyllables(e);
+  if (!syl || !syl.length) return '#';
+  const base = syl[0].base;
+  if (!base) return '#';
+  if (base.indexOf('o~') === 0) return OU_DOT;
+  const ch = base[0];
   if (!/[a-z]/.test(ch)) return '#';
   return ch;
 }
-// 完整羅馬字排序鍵：同一字母分組內，依整串 TL 拼音（去聲調、小寫）比較，
-// 才能得到跟一般台語辭典一致的字母順序，而不是只看字首、其餘照編號排。
-function romSortKey(tl) {
-  return stripDiacritics((tl || '').trim()).toLowerCase();
+
+// 兩個詞目排序比較：逐音節比較（拼字→調號數字），該音節無法決定時先比第一個
+// 漢字，仍相同才繼續下一個音節；全部比完仍相同則依編號排序（維持穩定）。
+function compareEntries(a, b) {
+  const sylA = getSortSyllables(a) || [];
+  const sylB = getSortSyllables(b) || [];
+  const n = Math.max(sylA.length, sylB.length);
+  const hanziA = (a.word || '').charAt(0);
+  const hanziB = (b.word || '').charAt(0);
+  for (let i = 0; i < n; i++) {
+    const sa = sylA[i], sb = sylB[i];
+    if (!sa && !sb) break;
+    if (!sa) return -1;
+    if (!sb) return 1;
+    if (sa.key !== sb.key) return sa.key < sb.key ? -1 : 1;
+    if (hanziA !== hanziB) return hanziA < hanziB ? -1 : 1;
+  }
+  if (hanziA !== hanziB) return hanziA < hanziB ? -1 : 1;
+  return parseInt(a.id, 10) - parseInt(b.id, 10);
 }
+
 function sortLetters(letters) {
+  const rank = l => (l === '#' ? '￿' : (l === OU_DOT ? 'o~' : l));
   return letters.slice().sort((a, b) => {
-    if (a === '#') return 1; if (b === '#') return -1;
-    return a < b ? -1 : (a > b ? 1 : 0);
+    const ra = rank(a), rb = rank(b);
+    return ra < rb ? -1 : (ra > rb ? 1 : 0);
   });
 }
 
@@ -750,20 +801,18 @@ async function loadData() {
         tag: row['標籤'] || '',
         tl: row['TL'] || '',
         poj: row['POJ'] || '',
+        tlN: row['TL/N.'] || '',
+        pojN: row['POJ/N.'] || '',
         audioFile: row['音檔'] || '',
         categories: cats,
-        type: row['類型'] || '',
-        letter: firstLetter(row['TL'])
+        type: row['類型'] || ''
       };
+      e.tlSyl = parseSortSyllables(e.tlN, false);
+      e.pojSyl = parseSortSyllables(e.pojN, true);
       lemmataById[id] = e;
       if (e.type !== NO_ENTRY_TYPE) entries.push(e);
     });
-    entries.forEach(e => { e.sortKey = romSortKey(e.tl); });
-    entries.sort((a, b) => {
-      if (a.sortKey < b.sortKey) return -1;
-      if (a.sortKey > b.sortKey) return 1;
-      return parseInt(a.id, 10) - parseInt(b.id, 10);
-    });
+    entries.sort(compareEntries);
     ALL_CATEGORIES = [...categorySet].sort();
     selectedCategories = new Set(ALL_CATEGORIES);
 
@@ -872,7 +921,7 @@ function buildSidebar() {
     <span class="sb-arrow">${azSectionOpen ? '▾' : '▸'}</span>
   </div>`;
   const visible = getVisibleEntries();
-  const letters = sortLetters([...new Set(visible.map(e => e.letter))]);
+  const letters = sortLetters([...new Set(visible.map(e => getLetterKey(e)))]);
   html += `<div class="az-list ${azSectionOpen ? '' : 'closed'}">` + letters.map(l =>
     `<button class="az-btn ${l === activeLetter ? 'active' : ''}" id="az-${l}" onclick="switchLetter('${l}')">${l.toUpperCase()}</button>`
   ).join('') + `</div>`;
@@ -902,7 +951,9 @@ function buildSidebar() {
 
 function setWordOrder(val) { wordOrder = val; buildSidebar(); renderContent(); layoutLetterGrids(); }
 function setRomSystem(val) {
-  romSystem = val; buildSidebar(); renderContent(); layoutLetterGrids();
+  romSystem = val;
+  entries.sort(compareEntries); // 排序/字母分組隨 TL/POJ 切換而變動
+  buildSidebar(); renderContent(); layoutLetterGrids();
   // 方言差面板若正開著，同步切換成主頁面目前選的 TL/POJ，不需要在面板裡另外切換
   if (dialPanelCurrentId && dialCardsById && dialCardsById[dialPanelCurrentId]) {
     renderDialPanelBody(dialCardsById[dialPanelCurrentId]);
@@ -987,8 +1038,9 @@ function renderSenseSection(lemma) {
 function renderSingleSense(lemma, s, idx, multi) {
   const text = pick(s.tl, s.poj);
   const numHtml = multi ? `<span class="sense-num">${idx + 1}.</span>` : '';
+  const posHtml = s.pos ? `<span class="sense-tag">${escapeHtml(s.pos)}</span>` : '';
   const tagHtml = s.tag ? `<span class="sense-tag">${escapeHtml(s.tag)}</span>` : '';
-  const transHtml = text ? `<div class="sense-trans">${numHtml}${tagHtml}${escapeHtml(text)}</div>` : (numHtml || tagHtml ? `<div class="sense-trans">${numHtml}${tagHtml}</div>` : '');
+  const transHtml = text ? `<div class="sense-trans">${numHtml}${posHtml}${tagHtml}${escapeHtml(text)}</div>` : (numHtml || posHtml || tagHtml ? `<div class="sense-trans">${numHtml}${posHtml}${tagHtml}</div>` : '');
   const examplesHtml = renderExamplesForSense(lemma, s.senseId);
   const refsHtml = buildRefsHtml(s);
   const dialHtml = buildDialDiffHtml(s.dialDiff);
@@ -1020,7 +1072,7 @@ function buildDialDiffHtml(raw) {
 const DIAL_IMG_W = 850, DIAL_IMG_H = 1200, DIAL_DISPLAY_W = 380;
 const DIAL_SCALE = DIAL_DISPLAY_W / DIAL_IMG_W;
 const DIAL_DISPLAY_H = Math.round(DIAL_IMG_H * DIAL_SCALE);
-const DIAL_REGION_PIXELS = {"三峽": [655.0, 193.0], "宜蘭": [737.0, 284.0], "新竹": [518.0, 212.0], "臺中": [440.0, 405.0], "臺北": [685.0, 127.0], "臺南": [295.0, 808.0], "高雄": [325.0, 895.0], "鹿港": [358.0, 440.0], "金門": [126.6, 325.1], "馬公": [108.0, 614.0]};
+const DIAL_REGION_PIXELS = {"三峽": [644.0, 165.0], "宜蘭": [737.0, 284.0], "新竹": [513.0, 209.0], "臺中": [440.0, 405.0], "臺北": [684.0, 101.0], "臺南": [322.0, 812.0], "高雄": [325.0, 895.0], "鹿港": [358.0, 440.0], "金門": [126.6, 325.1], "馬公": [108.0, 614.0]};
 
 let dialCardsById = null;     // 編號 -> 圖卡物件，惰性載入（第一次點方言差徽章時才抓）
 let dialCardsLoading = null;
@@ -1088,7 +1140,11 @@ function renderDialPanelBody(card) {
       const sep = idx > 0 ? '<span class="num-sep">,</span>' : '';
       return `${sep}<span class="voc-num" data-region="${escapeHtml(region)}" data-tl="${escapeHtml(it.tl)}" data-poj="${escapeHtml(it.poj)}">${it.n}</span>`;
     }).join('');
-    markersHtml += `<div class="region-marker" style="left:${rx}px; top:${ry}px;"><span class="region-dot"></span><span class="region-nums">${numsHtml}</span></div>`;
+    // 宜蘭位於底圖最右側，標籤改放點的正下方，避免超出圖片右側。
+    const numsStyle = region === '宜蘭'
+      ? 'left:0; top:6px; transform:translateX(-50%);'
+      : 'left:6px; top:0; transform:translateY(-50%);';
+    markersHtml += `<div class="region-marker" style="left:${rx}px; top:${ry}px;"><span class="region-dot"></span><span class="region-nums" style="${numsStyle}">${numsHtml}</span></div>`;
   }
 
   const rows = card.words.map(w => {
@@ -1186,9 +1242,10 @@ function jumpToLemma(lemmaId) {
   if (inCurrentPage && !searchQuery) { doScroll(); return; }
   searchQuery = ''; const input = document.getElementById('searchInput'); if (input) input.value = '';
   if (selectedCategories.size < ALL_CATEGORIES.length) selectedCategories = new Set(ALL_CATEGORIES);
-  const letterEntries = entries.filter(e => e.letter === lemma.letter);
+  const lemmaLetter = getLetterKey(lemma);
+  const letterEntries = entries.filter(e => getLetterKey(e) === lemmaLetter);
   const idx = letterEntries.findIndex(e => e.id === lemmaId);
-  switchLetter(lemma.letter, doScroll);
+  switchLetter(lemmaLetter, doScroll);
   subPage = idx >= 0 ? Math.floor(idx / SUB_PAGE_SIZE) : 0; // 覆寫 switchLetter 內部重設的 subPage=0
 }
 
@@ -1259,12 +1316,12 @@ function renderContent() {
     return;
   }
 
-  const availableLetters = sortLetters([...new Set(visible.map(e => e.letter))]);
+  const availableLetters = sortLetters([...new Set(visible.map(e => getLetterKey(e)))]);
   if (!activeLetter || !availableLetters.includes(activeLetter)) {
     activeLetter = availableLetters[0];
     subPage = 0;
   }
-  const letterEntries = visible.filter(e => e.letter === activeLetter);
+  const letterEntries = visible.filter(e => getLetterKey(e) === activeLetter);
   const totalSubPages = Math.max(1, Math.ceil(letterEntries.length / SUB_PAGE_SIZE));
   if (subPage >= totalSubPages) subPage = totalSubPages - 1;
   if (subPage < 0) subPage = 0;
