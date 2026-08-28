@@ -192,7 +192,19 @@ function showTooltip(el, e) {
 
 function positionTooltip(e) {
   const tooltip = document.getElementById('tooltip');
-  tooltip.style.left = (e.clientX + 14) + 'px';
+  // 先移到畫面外量出自然寬度，避免游標靠近地圖右側時 position:fixed + left
+  // 被瀏覽器擠成很窄的寬度，造成文字逐音節換行變成直條。
+  tooltip.style.left = '-9999px';
+  tooltip.style.top = '-9999px';
+  const naturalWidth = tooltip.getBoundingClientRect().width;
+  const wrap = document.querySelector('.map-wrap');
+  const boundaryRight = wrap ? wrap.getBoundingClientRect().right : window.innerWidth;
+  let left = e.clientX + 14;
+  if (left + naturalWidth > boundaryRight) {
+    left = e.clientX - 14 - naturalWidth;
+  }
+  left = Math.max(4, left);
+  tooltip.style.left = left + 'px';
   tooltip.style.top = (e.clientY + 14) + 'px';
 }
 

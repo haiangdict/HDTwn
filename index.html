@@ -285,6 +285,7 @@ input[type="text"]::placeholder { color: var(--muted); }
   font-family: 'Space Mono', monospace; font-size: 0.62em; font-weight: 400;
   color: var(--accent2); margin-left: 0.25em;
 }
+.homograph-idx { font-size: 0.5em; color: inherit; font-weight: inherit; margin-left: 1px; }
 .search-hit { background: color-mix(in srgb, var(--accent) 28%, transparent); color: var(--accent); border-radius: 3px; padding: 0 2px; font-weight: 600; }
 
 /* ── SENSES ── */
@@ -498,8 +499,11 @@ body.dial-open .main { margin-right: 420px; transition: margin-right 0.25s ease;
     <label class="scope-label" id="scope-exact" onclick="toggleExact()" title="僅顯示完全相符的結果">
       <span class="scope-chk" id="schk-exact">✓</span> 精確
     </label>
-    <label class="scope-label active" id="scope-lemma" onclick="toggleScope('lemma')" title="僅搜尋詞目及義項">
+    <label class="scope-label active" id="scope-lemma" onclick="toggleScope('lemma')" title="僅搜尋詞目本身（漢字／TL／POJ）">
       <span class="scope-chk" id="schk-lemma">✓</span> 詞目
+    </label>
+    <label class="scope-label active" id="scope-sense" onclick="toggleScope('sense')" title="僅搜尋義項（翻譯／解釋）">
+      <span class="scope-chk" id="schk-sense">✓</span> 義項
     </label>
     <label class="scope-label active" id="scope-example" onclick="toggleScope('example')" title="僅搜尋例句及其翻譯">
       <span class="scope-chk" id="schk-example">✓</span> 例句
@@ -584,7 +588,7 @@ let categorySectionOpen = false;
 
 let searchQuery = '';
 let searchExact = false;
-let searchScope = { lemma: true, example: true };
+let searchScope = { lemma: true, sense: true, example: true };
 
 let _sidebarCollapsed = false;
 
@@ -754,6 +758,28 @@ function sortLetters(letters) {
   });
 }
 
+// 同形詞標號：目前「主要顯示文字」完全相同的詞目（漢字優先時比漢字本身，
+// 羅馬字優先時比目前 TL/POJ 拼音），依編號由小到大標上 1,2,3...上標數字，
+// 方便使用者區分不同來源/詞義的同形詞目。只在有重複(同一組 ≥2 筆)時才標號，
+// 且只用於顯示，不會併入比對文字，所以不影響搜尋。
+// 漢字/拼音優先順序切換、或 TL/POJ 切換都會改變「比對對象」，因此每次
+// wordOrder/romSystem 改變都要重新計算一次。
+function computeHomographIndices() {
+  const keyFn = wordOrder === 'hanzi' ? (e => e.word) : (e => pick(e.tl, e.poj));
+  const groups = {};
+  entries.forEach(e => {
+    e.homographIndex = null;
+    const k = keyFn(e);
+    if (!k) return;
+    (groups[k] = groups[k] || []).push(e);
+  });
+  Object.values(groups).forEach(group => {
+    if (group.length < 2) return;
+    group.sort((a, b) => parseInt(a.id, 10) - parseInt(b.id, 10));
+    group.forEach((e, i) => { e.homographIndex = i + 1; });
+  });
+}
+
 // ══════════════════════════════════════════════════════════════════
 // 資料載入
 // ══════════════════════════════════════════════════════════════════
@@ -813,6 +839,7 @@ async function loadData() {
       if (e.type !== NO_ENTRY_TYPE) entries.push(e);
     });
     entries.sort(compareEntries);
+    computeHomographIndices();
     ALL_CATEGORIES = [...categorySet].sort();
     selectedCategories = new Set(ALL_CATEGORIES);
 
@@ -949,10 +976,15 @@ function buildSidebar() {
   sidebar.innerHTML = html;
 }
 
-function setWordOrder(val) { wordOrder = val; buildSidebar(); renderContent(); layoutLetterGrids(); }
+function setWordOrder(val) {
+  wordOrder = val;
+  computeHomographIndices(); // 漢字/羅馬字優先切換會改變同形詞比對對象，需重新編號
+  buildSidebar(); renderContent(); layoutLetterGrids();
+}
 function setRomSystem(val) {
   romSystem = val;
   entries.sort(compareEntries); // 排序/字母分組隨 TL/POJ 切換而變動
+  computeHomographIndices(); // TL/POJ 切換也會改變羅馬字優先模式下的比對對象
   buildSidebar(); renderContent(); layoutLetterGrids();
   // 方言差面板若正開著，同步切換成主頁面目前選的 TL/POJ，不需要在面板裡另外切換
   if (dialPanelCurrentId && dialCardsById && dialCardsById[dialPanelCurrentId]) {
@@ -1009,8 +1041,10 @@ function togglePlay(url, btn) {
 }
 
 function renderLemmaCard(e) {
-  const hanziHtml = escapeHtml(e.word) + (e.tag ? `<span class="lemma-tag">[${escapeHtml(e.tag)}]</span>` : '');
-  const romHtml = escapeHtml(pick(e.tl, e.poj));
+  const homographHtml = e.homographIndex ? `<sub class="homograph-idx">${e.homographIndex}</sub>` : '';
+  const hanziHtml = escapeHtml(e.word) + (wordOrder === 'hanzi' ? homographHtml : '')
+    + (e.tag ? `<span class="lemma-tag">[${escapeHtml(e.tag)}]</span>` : '');
+  const romHtml = escapeHtml(pick(e.tl, e.poj)) + (wordOrder === 'rom' ? homographHtml : '');
   const topHtml = wordOrder === 'hanzi' ? hanziHtml : romHtml;
   const bottomHtml = wordOrder === 'hanzi' ? romHtml : hanziHtml;
   const url = lemmaAudioUrl(e);
@@ -1072,7 +1106,7 @@ function buildDialDiffHtml(raw) {
 const DIAL_IMG_W = 850, DIAL_IMG_H = 1200, DIAL_DISPLAY_W = 380;
 const DIAL_SCALE = DIAL_DISPLAY_W / DIAL_IMG_W;
 const DIAL_DISPLAY_H = Math.round(DIAL_IMG_H * DIAL_SCALE);
-const DIAL_REGION_PIXELS = {"三峽": [644.0, 165.0], "宜蘭": [737.0, 284.0], "新竹": [513.0, 208.0], "臺中": [440.0, 405.0], "臺北": [679.0, 103.0], "臺南": [280.0, 782.0], "高雄": [325.0, 895.0], "鹿港": [358.0, 440.0], "金門": [126.6, 325.1], "馬公": [108.0, 614.0]};
+const DIAL_REGION_PIXELS = {"三峽": [644.0, 165.0], "宜蘭": [737.0, 284.0], "新竹": [513.0, 208.0], "臺中": [440.0, 405.0], "臺北": [679.0, 103.0], "臺南": [280.0, 782.0], "高雄": [325.0, 895.0], "鹿港": [358.0, 440.0], "金門": [126.6, 325.1], "馬公": [112.0, 607.0]};
 
 let dialCardsById = null;     // 編號 -> 圖卡物件，惰性載入（第一次點方言差徽章時才抓）
 let dialCardsLoading = null;
@@ -1185,7 +1219,20 @@ function showDialTooltip(el, e) {
 }
 function positionDialTooltip(e) {
   const tooltip = document.getElementById('dialTooltip');
-  tooltip.style.left = (e.clientX + 14) + 'px';
+  // 先把提示框放到畫面外量出「自然寬度」(不受邊界擠壓)，
+  // 避免游標靠近地圖右側時，dialTooltip 因為 position:fixed + left 太接近
+  // 視窗/地圖右邊界，被瀏覽器算成很窄的寬度、導致文字逐音節換行變成直條。
+  tooltip.style.left = '-9999px';
+  tooltip.style.top = '-9999px';
+  const naturalWidth = tooltip.getBoundingClientRect().width;
+  const wrap = document.querySelector('#dialPanelBody .dial-map-wrap');
+  const boundaryRight = wrap ? wrap.getBoundingClientRect().right : window.innerWidth;
+  let left = e.clientX + 14;
+  if (left + naturalWidth > boundaryRight) {
+    left = e.clientX - 14 - naturalWidth; // 超出地圖右側就改貼在游標左邊
+  }
+  left = Math.max(4, left);
+  tooltip.style.left = left + 'px';
   tooltip.style.top = (e.clientY + 14) + 'px';
 }
 
@@ -1399,6 +1446,8 @@ function matchesSearch(e) {
     if (textMatchesQuery(e.word, q, exact)) return true;
     if (textMatchesQuery(e.tl, q, exact)) return true;
     if (textMatchesQuery(e.poj, q, exact)) return true;
+  }
+  if (searchScope.sense) {
     const senses = sensesByLemma[e.id] || [];
     if (senses.some(s => textMatchesQuery(s.tl, q, exact) || textMatchesQuery(s.poj, q, exact))) return true;
   }
@@ -1427,23 +1476,25 @@ function toggleExact() {
   if (searchQuery) { renderContent(); layoutLetterGrids(); }
 }
 function toggleScope(kind) {
-  // 每個範圍(詞目/例句)各自獨立勾選/取消，唯一限制是不能兩者同時取消
+  // 詞目/義項/例句三個範圍各自獨立勾選/取消，唯一限制是不能讓三者同時關閉
   // (那樣搜尋範圍會變成空集合，等於永遠搜不到東西)。
-  const other = kind === 'lemma' ? 'example' : 'lemma';
   const next = !searchScope[kind];
-  if (!next && !searchScope[other]) return; // 不允許兩者都關閉
+  const others = Object.keys(searchScope).filter(k => k !== kind);
+  if (!next && others.every(k => !searchScope[k])) return; // 不允許三者都關閉
   searchScope[kind] = next;
   document.getElementById('scope-lemma').classList.toggle('active', searchScope.lemma);
+  document.getElementById('scope-sense').classList.toggle('active', searchScope.sense);
   document.getElementById('scope-example').classList.toggle('active', searchScope.example);
   if (searchQuery) { renderContent(); layoutLetterGrids(); }
 }
 function clearSearchFilters() {
   searchQuery = ''; searchExact = false;
-  searchScope = { lemma: true, example: true };
+  searchScope = { lemma: true, sense: true, example: true };
   selectedCategories = new Set(ALL_CATEGORIES);
   document.getElementById('searchInput').value = '';
   document.getElementById('scope-exact').classList.remove('active');
   document.getElementById('scope-lemma').classList.add('active');
+  document.getElementById('scope-sense').classList.add('active');
   document.getElementById('scope-example').classList.add('active');
   buildSidebar();
   renderContent();
