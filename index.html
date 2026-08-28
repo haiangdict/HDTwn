@@ -386,15 +386,12 @@ a.ref-word:hover { text-decoration: underline; }
 .voc-num { cursor: pointer; padding: 0 1px; border-radius: 2px; }
 .voc-num:hover { background: var(--accent); color: #fff; }
 .num-sep { color: var(--muted); opacity: .6; }
-.word-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
-.word-table caption { text-align: left; font-family: 'Space Mono', monospace; font-size: 0.62rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 8px; }
-.word-table th {
-  text-align: left; font-family: 'Space Mono', monospace; font-size: 0.65rem; color: var(--muted);
-  text-transform: uppercase; letter-spacing: 0.08em; border-bottom: 1px solid var(--border); padding: 6px 8px;
-}
-.word-table td { padding: 7px 8px; border-bottom: 1px solid var(--border); color: var(--text); }
-.word-table tr:hover td { background: var(--surface2); }
-.wt-num { font-family: 'Space Mono', monospace; color: var(--accent2); font-weight: 700; width: 40px; }
+.word-list-wrap { margin-bottom: 18px; }
+.word-list-caption { font-family: 'Space Mono', monospace; font-size: 0.62rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 8px; }
+.word-list { columns: 130px 2; column-gap: 10px; border-top: 1px solid var(--border); font-size: 0.92rem; }
+.word-item { display: flex; align-items: center; gap: 6px; padding: 7px 6px; border-bottom: 1px solid var(--border); color: var(--text); break-inside: avoid; }
+.word-item:hover { background: var(--surface2); }
+.wt-num { font-family: 'Space Mono', monospace; color: var(--accent2); font-weight: 700; min-width: 20px; }
 .wt-hanzi { font-size: 1.02rem; }
 #dialTooltip {
   position: fixed; background: var(--surface2); border: 1px solid var(--accent2);
@@ -1106,7 +1103,7 @@ function buildDialDiffHtml(raw) {
 const DIAL_IMG_W = 850, DIAL_IMG_H = 1200, DIAL_DISPLAY_W = 380;
 const DIAL_SCALE = DIAL_DISPLAY_W / DIAL_IMG_W;
 const DIAL_DISPLAY_H = Math.round(DIAL_IMG_H * DIAL_SCALE);
-const DIAL_REGION_PIXELS = {"三峽": [644.0, 165.0], "宜蘭": [737.0, 284.0], "新竹": [513.0, 208.0], "臺中": [440.0, 405.0], "臺北": [679.0, 103.0], "臺南": [280.0, 782.0], "高雄": [325.0, 895.0], "鹿港": [358.0, 440.0], "金門": [126.6, 325.1], "馬公": [112.0, 607.0]};
+const DIAL_REGION_PIXELS = {"三峽": [644.0, 165.0], "宜蘭": [737.0, 284.0], "新竹": [513.0, 208.0], "臺中": [440.0, 405.0], "臺北": [679.0, 103.0], "臺南": [280.0, 782.0], "高雄": [325.0, 895.0], "鹿港": [358.0, 440.0], "金門": [126.6, 325.1], "馬公": [118.0, 604.0]};
 
 let dialCardsById = null;     // 編號 -> 圖卡物件，惰性載入（第一次點方言差徽章時才抓）
 let dialCardsLoading = null;
@@ -1183,20 +1180,19 @@ function renderDialPanelBody(card) {
 
   const rows = card.words.map(w => {
     const disp = romSystem === 'TL' ? w.h_tl : w.h_poj;
-    return `<tr><td class="wt-num">${w.n}</td><td class="wt-hanzi">${escapeHtml(disp)}</td></tr>`;
+    return `<div class="word-item"><span class="wt-num">${w.n}</span><span class="wt-hanzi">${escapeHtml(disp)}</span></div>`;
   }).join('');
 
   document.getElementById('dialPanelBody').innerHTML = `
+    <div class="word-list-wrap">
+      <div class="word-list-caption">詞彙編號對照表</div>
+      <div class="word-list" id="dialWordList">${rows}</div>
+    </div>
     <div class="dial-panel-maplabel">腔口分布</div>
     <div class="dial-map-wrap" style="width:${DIAL_DISPLAY_W}px; height:${DIAL_DISPLAY_H}px;">
       <img src="./maps/assets/base-map.jpg" width="${DIAL_DISPLAY_W}" height="${DIAL_DISPLAY_H}" alt="台灣底圖">
       ${markersHtml}
     </div>
-    <table class="word-table">
-      <caption>詞彙編號對照表</caption>
-      <thead><tr><th>編號</th><th>漢字</th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table>
   `;
   attachDialTooltipHandlers();
 }
