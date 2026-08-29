@@ -313,6 +313,11 @@ input[type="text"]::placeholder { color: var(--muted); }
 }
 .dial-diff-badge + .dial-diff-badge { margin-left: 6px; }
 .dial-diff-badge:hover { background: var(--accent); color: #fff; }
+/* 語音比較徽章掛在整個詞目卡片最下方（不屬於任何一個義項），
+   用一條淺分隔線跟上面的義項列表區隔開，避免看起來像屬於最後一個義項。 */
+.pron-diff-row { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border); }
+.pron-diff-badge { color: var(--accent2); background: rgba(139,196,168,0.12); border-color: var(--accent2); }
+.pron-diff-badge:hover { background: var(--accent2); color: #0d1410; }
 
 /* ── REFERENCE FIELDS ── */
 .ref-row { margin-top: 5px; font-size: 0.88em; color: var(--muted); line-height: 1.6; }
@@ -385,6 +390,7 @@ a.ref-word:hover { text-decoration: underline; }
 }
 .voc-num { cursor: pointer; padding: 0 1px; border-radius: 2px; }
 .voc-num:hover { background: var(--accent); color: #fff; }
+.pron-num { padding: 0 1px; border-radius: 2px; } /* 語音比較：純數字，不互動、無 tooltip */
 .num-sep { color: var(--muted); opacity: .6; }
 .word-list-wrap { margin-bottom: 18px; }
 .word-list-caption { font-family: 'Space Mono', monospace; font-size: 0.62rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 8px; }
@@ -544,6 +550,10 @@ const ETYMOLOGY_URL = './data/HLD-Etymology.csv';
 // 這份很小、一開始就整份載入，讓徽章一開始渲染就能直接顯示名稱，不用等使用者點開面板才知道。
 const CARD_NAMES_URL = './maps/data/card-names.json';
 let dialCardNames = {};
+// 語音比較（詞目層級，Lemmata.csv「方言差」欄位＝ P+編號）：跟詞彙比較是完全獨立的一套圖卡資料，
+// 用同一個右側面板呈現，但資料結構、徽章名稱表都各自分開。
+const PRON_CARD_NAMES_URL = './maps/data/pron-card-names.json';
+let pronCardNames = {};
 
 // 音檔：CSV 內只存檔名，實際網址＝ 基礎網址 + 子資料夾 + 檔名。
 // TODO：使用者的 Cloudflare 公開網域確定後，把下面這一行換成正確的網址即可，
@@ -782,18 +792,24 @@ function computeHomographIndices() {
 // ══════════════════════════════════════════════════════════════════
 async function loadData() {
   try {
-    const [lemmataText, sensesText, examplesText, etymologyText, cardNamesText] = await Promise.all([
+    const [lemmataText, sensesText, examplesText, etymologyText, cardNamesText, pronCardNamesText] = await Promise.all([
       fetchTextWithRetry(LEMMATA_URL),
       fetchTextWithRetry(SENSES_URL),
       fetchTextWithRetry(EXAMPLES_URL),
       fetchTextWithRetry(ETYMOLOGY_URL),
-      fetchTextWithRetry(CARD_NAMES_URL, 2, 500)
+      fetchTextWithRetry(CARD_NAMES_URL, 2, 500),
+      fetchTextWithRetry(PRON_CARD_NAMES_URL, 2, 500)
     ]);
 
     dialCardNames = {};
     if (cardNamesText) {
       try { dialCardNames = JSON.parse(cardNamesText); }
       catch (e) { console.error('方言差圖卡名稱資料格式錯誤', e); }
+    }
+    pronCardNames = {};
+    if (pronCardNamesText) {
+      try { pronCardNames = JSON.parse(pronCardNamesText); }
+      catch (e) { console.error('語音比較圖卡名稱資料格式錯誤', e); }
     }
 
     if (lemmataText === null) {
@@ -828,7 +844,8 @@ async function loadData() {
         pojN: row['POJ/N.'] || '',
         audioFile: row['音檔'] || '',
         categories: cats,
-        type: row['類型'] || ''
+        type: row['類型'] || '',
+        pronDiff: row['方言差'] || ''
       };
       e.tlSyl = parseSortSyllables(e.tlN, false);
       e.pojSyl = parseSortSyllables(e.pojN, true);
@@ -983,8 +1000,10 @@ function setRomSystem(val) {
   entries.sort(compareEntries); // 排序/字母分組隨 TL/POJ 切換而變動
   computeHomographIndices(); // TL/POJ 切換也會改變羅馬字優先模式下的比對對象
   buildSidebar(); renderContent(); layoutLetterGrids();
-  // 方言差面板若正開著，同步切換成主頁面目前選的 TL/POJ，不需要在面板裡另外切換
-  if (dialPanelCurrentId && dialCardsById && dialCardsById[dialPanelCurrentId]) {
+  // 方言差／語音比較面板若正開著，同步切換成主頁面目前選的 TL/POJ，不需要在面板裡另外切換
+  if (dialPanelCurrentId && dialPanelCurrentKind === 'pron' && pronCardsById && pronCardsById[dialPanelCurrentId]) {
+    renderPronPanelBody(pronCardsById[dialPanelCurrentId]);
+  } else if (dialPanelCurrentId && dialPanelCurrentKind === 'vocab' && dialCardsById && dialCardsById[dialPanelCurrentId]) {
     renderDialPanelBody(dialCardsById[dialPanelCurrentId]);
   }
 }
@@ -1055,6 +1074,7 @@ function renderLemmaCard(e) {
       </div>
       <div class="lemma-line lemma-line-bottom">${bottomHtml}</div>
       ${renderSenseSection(e)}
+      ${buildPronDiffHtml(e)}
     </div>`;
 }
 
@@ -1097,6 +1117,26 @@ function buildDialDiffHtml(raw) {
   return `<div class="ref-row dial-diff-row">${badges}</div>`;
 }
 
+// 語音比較徽章：跟「詞彙比較」的差異是掛在「詞目」層級（Lemmata.csv 的「方言差」欄位，
+// 格式 P+編號），不是掛在個別義項底下，所以渲染時機是在 renderLemmaCard() 裡、
+// 所有義項都渲染完之後，接在整個詞目卡片的最下方，而不是塞進某個 sense-item 裡。
+function buildPronDiffHtml(lemma) {
+  const raw = lemma.pronDiff;
+  if (!raw) return '';
+  const toks = raw.split('|').map(t => t.trim()).filter(Boolean);
+  const badges = toks.map(t => {
+    const m = t.match(/^P(\d+)$/i);
+    if (!m) return '';
+    const num = String(parseInt(m[1], 10));
+    const name = pronCardNames[num];
+    const label = '語音比較' + (name ? `「${escapeHtml(name)}」` : '');
+    return `<span class="dial-diff-badge pron-diff-badge" role="button" tabindex="0" title="查看語音腔口分布"
+      onclick="openPronPanel('${num}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openPronPanel('${num}')}">${label}</span>`;
+  }).join('');
+  if (!badges) return '';
+  return `<div class="ref-row dial-diff-row pron-diff-row">${badges}</div>`;
+}
+
 // ══════════════════════════════════════════════════════════════════
 // 方言差側邊面板（咬din 圖卡資料，內嵌顯示於右側，不跳頁）
 // ══════════════════════════════════════════════════════════════════
@@ -1108,6 +1148,7 @@ const DIAL_REGION_PIXELS = {"三峽": [644.0, 165.0], "宜蘭": [737.0, 284.0], 
 let dialCardsById = null;     // 編號 -> 圖卡物件，惰性載入（第一次點方言差徽章時才抓）
 let dialCardsLoading = null;
 let dialPanelCurrentId = null; // 目前面板顯示的圖卡編號；面板關閉時為 null
+let dialPanelCurrentKind = null; // 'vocab'（詞彙比較）或 'pron'（語音比較）；面板關閉時為 null
 
 async function ensureDialCardsLoaded() {
   if (dialCardsById) return dialCardsById;
@@ -1125,6 +1166,7 @@ async function ensureDialCardsLoaded() {
 
 async function openDialPanel(id) {
   dialPanelCurrentId = id;
+  dialPanelCurrentKind = 'vocab';
   document.getElementById('dialPanel').classList.add('open');
   document.body.classList.add('dial-open');
   setTimeout(layoutLetterGrids, 260);
@@ -1133,7 +1175,7 @@ async function openDialPanel(id) {
   document.getElementById('dialPanelBody').innerHTML = `<div class="empty"><div class="empty-icon">⟳</div><div>載入中…</div></div>`;
   try {
     const byId = await ensureDialCardsLoaded();
-    if (dialPanelCurrentId !== id) return; // 載入完成前使用者已切換到別張圖卡或關閉面板
+    if (dialPanelCurrentId !== id || dialPanelCurrentKind !== 'vocab') return; // 載入完成前使用者已切換到別張圖卡或關閉面板
     const card = byId[id];
     if (!card) {
       document.getElementById('dialPanelBody').innerHTML = `<div class="empty"><div class="empty-icon">⚠</div><div>找不到編號 ${escapeHtml(id)} 的圖卡</div></div>`;
@@ -1146,8 +1188,52 @@ async function openDialPanel(id) {
   }
 }
 
+// ── 語音比較（詞目層級）：跟 openDialPanel 是平行的一套，共用同一個右側面板 DOM，
+// 只是資料來源、面板內容渲染方式不同（見 renderPronPanelBody）。──
+let pronCardsById = null;
+let pronCardsLoading = null;
+
+async function ensurePronCardsLoaded() {
+  if (pronCardsById) return pronCardsById;
+  if (pronCardsLoading) return pronCardsLoading;
+  pronCardsLoading = (async () => {
+    const res = await fetch('./maps/data/pron-cards.json', { cache: 'force-cache' });
+    const arr = await res.json();
+    const byId = {};
+    arr.forEach(c => { byId[c.id] = c; });
+    pronCardsById = byId;
+    return byId;
+  })();
+  return pronCardsLoading;
+}
+
+async function openPronPanel(id) {
+  dialPanelCurrentId = id;
+  dialPanelCurrentKind = 'pron';
+  document.getElementById('dialPanel').classList.add('open');
+  document.body.classList.add('dial-open');
+  setTimeout(layoutLetterGrids, 260);
+  document.getElementById('dialPanelIdtag').textContent = '';
+  document.getElementById('dialPanelTitle').textContent = '';
+  document.getElementById('dialPanelBody').innerHTML = `<div class="empty"><div class="empty-icon">⟳</div><div>載入中…</div></div>`;
+  try {
+    const byId = await ensurePronCardsLoaded();
+    if (dialPanelCurrentId !== id || dialPanelCurrentKind !== 'pron') return; // 載入完成前使用者已切換到別張圖卡或關閉面板
+    const card = byId[id];
+    if (!card) {
+      document.getElementById('dialPanelBody').innerHTML = `<div class="empty"><div class="empty-icon">⚠</div><div>找不到編號 ${escapeHtml(id)} 的語音比較圖卡</div></div>`;
+      return;
+    }
+    renderPronPanelBody(card);
+  } catch (err) {
+    console.error(err);
+    document.getElementById('dialPanelBody').innerHTML = `<div class="empty"><div class="empty-icon">⚠</div><div>圖卡資料載入失敗</div></div>`;
+  }
+}
+
 function closeDialPanel() {
   dialPanelCurrentId = null;
+  dialPanelCurrentKind = null;
   document.getElementById('dialPanel').classList.remove('open');
   document.getElementById('dialTooltip').classList.remove('show');
   document.body.classList.remove('dial-open');
@@ -1195,6 +1281,51 @@ function renderDialPanelBody(card) {
     </div>
   `;
   attachDialTooltipHandlers();
+}
+
+// 語音比較面板：跟 renderDialPanelBody 的差異——
+// 1. 資料少一層（沒有「漢字詞」，直接是讀音），所以上方列表顯示的是 TL/POJ 讀音本身，
+//    地圖上的編號只是「參照上方列表第幾號」的純數字，不掛 mouseenter/mousemove 的
+//    tooltip（用 .pron-num 這個跟 .voc-num 不同的 class，attachDialTooltipHandlers()
+//    只認 .voc-num，天然就不會幫這些數字綁定 tooltip 事件）。
+// 2. card.rm 存的是「該區域對應上方列表第幾號」的數字陣列，不像詞彙比較那樣每個區域
+//    自己帶一份 tl/poj（因為讀音已經完整列在上方列表了，不需要再重複存一份）。
+function renderPronPanelBody(card) {
+  document.getElementById('dialPanelIdtag').textContent = '語音卡 No. ' + (card.id.length >= 3 ? card.id : card.id.padStart(3, '0'));
+  document.getElementById('dialPanelTitle').textContent = card.sub;
+
+  let markersHtml = '';
+  for (const [region, nums] of Object.entries(card.rm)) {
+    const px = DIAL_REGION_PIXELS[region];
+    if (!px) continue;
+    const rx = px[0] * DIAL_SCALE, ry = px[1] * DIAL_SCALE;
+    const numsHtml = nums.map((n, idx) => {
+      const sep = idx > 0 ? '<span class="num-sep">,</span>' : '';
+      return `${sep}<span class="pron-num">${n}</span>`;
+    }).join('');
+    const numsStyle = region === '宜蘭'
+      ? 'left:0; top:6px; transform:translateX(-50%);'
+      : 'left:6px; top:0; transform:translateY(-50%);';
+    markersHtml += `<div class="region-marker" style="left:${rx}px; top:${ry}px;"><span class="region-dot"></span><span class="region-nums" style="${numsStyle}">${numsHtml}</span></div>`;
+  }
+
+  const rows = card.prons.map(p => {
+    const disp = romSystem === 'TL' ? p.tl : p.poj;
+    return `<div class="word-item"><span class="wt-num">${p.n}</span><span class="wt-hanzi">${escapeHtml(disp)}</span></div>`;
+  }).join('');
+
+  document.getElementById('dialPanelBody').innerHTML = `
+    <div class="word-list-wrap">
+      <div class="word-list-caption">發音編號對照表</div>
+      <div class="word-list" id="dialWordList">${rows}</div>
+    </div>
+    <div class="dial-panel-maplabel">腔口分布</div>
+    <div class="dial-map-wrap" style="width:${DIAL_DISPLAY_W}px; height:${DIAL_DISPLAY_H}px;">
+      <img src="./maps/assets/base-map.jpg" width="${DIAL_DISPLAY_W}" height="${DIAL_DISPLAY_H}" alt="台灣底圖">
+      ${markersHtml}
+    </div>
+  `;
+  // 語音比較的地圖數字不需要 tooltip（上方列表已經顯示讀音），所以不呼叫 attachDialTooltipHandlers()。
 }
 
 function attachDialTooltipHandlers() {
