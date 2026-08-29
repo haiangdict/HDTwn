@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>課｜台語語音腔口分布圖卡 No.16827 - HDTwn 海盎台語辭典</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+@font-face {
+  font-family: 'jf-openhuninn';
+  src: url('../fonts/jf-openhuninn-2.1-subset.woff2') format('woff2');
+  font-weight: 400; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'RareHanzi';
+  src: url('../fonts/rare-fallback.woff2') format('woff2');
+  font-weight: 400; font-style: normal; font-display: swap;
+}
+:root {
+  --bg: #0e0e0e;
+  --surface: #1a1a1a;
+  --surface2: #242424;
+  --border: #2e2e2e;
+  --accent: #207C55;
+  --accent2: #8bc4a8;
+  --text: #e8e4dc;
+  --muted: #8a8a8a;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--bg); color: var(--text);
+  font-family: 'jf-openhuninn', 'RareHanzi', 'Noto Serif TC', serif;
+  min-height: 100vh; display: flex; flex-direction: column;
+}
+header {
+  border-bottom: 1px solid var(--border);
+  padding: 16px 26px;
+  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;
+}
+.hdr-left { display: flex; align-items: center; gap: 16px; }
+.back-link {
+  font-family: 'Space Mono', monospace; font-size: .68rem; color: var(--muted);
+  text-decoration: none; border: 1px solid var(--border); border-radius: 20px;
+  padding: 5px 12px; transition: all .15s; white-space: nowrap;
+}
+.back-link:hover { color: var(--text); border-color: var(--accent2); }
+.logo-main { font-size: 1.15rem; font-weight: 900; letter-spacing: .04em; color: var(--accent); }
+.logo-sub { font-family: 'Space Mono', monospace; font-size: .58rem; color: var(--muted); letter-spacing: .08em; text-transform: uppercase; margin-top: 2px; }
+.toggle-group { display: flex; align-items: center; gap: 8px; }
+.toggle-label {
+  font-family: 'Space Mono', monospace; font-size: .6rem; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .1em;
+}
+.toggle-switch {
+  display: flex; border: 1px solid var(--border); border-radius: 18px;
+  overflow: hidden; background: var(--surface2);
+}
+.toggle-option {
+  flex: 1; text-align: center; padding: 7px 12px;
+  font-family: 'Space Mono', monospace; font-size: .74rem;
+  cursor: pointer; color: var(--muted); transition: all .15s; user-select: none;
+}
+.toggle-option:hover { color: var(--text); }
+.toggle-option.active { background: var(--accent); color: #fff; font-weight: 700; }
+
+.content { flex: 1; padding: 26px 32px; }
+.card-head { margin-bottom: 18px; }
+.card-idtag {
+  font-family: 'Space Mono', monospace; font-size: 1.05rem; font-weight: 700; color: var(--text);
+  letter-spacing: .06em; margin-bottom: 6px;
+}
+.card-title { font-size: 1.6rem; font-weight: 700; color: var(--accent); letter-spacing: .02em; }
+
+.card-body { display: flex; flex-direction: column; gap: 22px; }
+
+.map-wrap { position: relative; flex: 0 0 auto; }
+.map-wrap img { display: block; border-radius: 10px; border: 1px solid var(--border); }
+
+.region-marker { position: absolute; width: 0; height: 0; z-index: 5; }
+.region-dot { position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); width: 7px; height: 7px; border-radius: 50%; background: var(--accent); border: 1.5px solid #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.4); }
+.region-nums {
+  position: absolute; left: 6px; top: 0; transform: translateY(-50%);
+  font-family: 'Space Mono', monospace; font-size: 10.5px; font-weight: 700; color: #0d4a32;
+  background: rgba(255,255,255,.92); border-radius: 4px; padding: 1px 4px; line-height: 1.5;
+  white-space: nowrap; box-shadow: 0 1px 3px rgba(0,0,0,.4); vertical-align: super;
+}
+.pron-num { padding: 0 1px; border-radius: 2px; }
+.num-sep { color: #b8a; opacity: .5; }
+
+.word-list-wrap { width: 100%; }
+.word-list-caption { text-align: left; font-family: 'Space Mono', monospace; font-size: .62rem; color: var(--muted); text-transform: uppercase; letter-spacing: .1em; margin-bottom: 8px; }
+.word-list { columns: 150px 2; column-gap: 16px; border-top: 1px solid var(--border); font-size: .92rem; }
+.word-item { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-bottom: 1px solid var(--border); break-inside: avoid; }
+.word-item:hover { background: var(--surface2); }
+.wt-num { font-family: 'Space Mono', monospace; color: var(--accent2); font-weight: 700; min-width: 22px; }
+.wt-hanzi { font-size: 1.05rem; }
+
+footer { border-top: 1px solid var(--border); padding: 10px 26px; font-family: 'Space Mono', monospace; font-size: .62rem; color: var(--muted); }
+
+@media (max-width: 720px) {
+  header { flex-direction: column; align-items: flex-start; }
+  .card-body { flex-direction: column; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="hdr-left">
+    <a class="back-link" href="../index.html">← 返回 HDTwn 辭典</a>
+    <div>
+      <div class="logo-main">咬 din</div>
+      <div class="logo-sub">台語語音腔口分布圖卡</div>
+    </div>
+  </div>
+  <div class="toggle-group">
+    <div class="toggle-label">羅馬字系統</div>
+    <div class="toggle-switch" id="romToggle">
+      <div class="toggle-option active" data-val="tl">TL</div>
+      <div class="toggle-option" data-val="poj">POJ</div>
+    </div>
+  </div>
+</header>
+
+<div class="content" id="content">
+  <div class="card-head">
+    <div class="card-idtag">語音卡 No. 16827</div>
+    <div class="card-title">課</div>
+  </div>
+  <div class="card-body">
+    <div class="word-list-wrap">
+      <div class="word-list-caption">發音編號對照表</div>
+      <div class="word-list" id="wordList"><div class="word-item"><span class="wt-num">1</span><span class="wt-hanzi">khuè</span></div><div class="word-item"><span class="wt-num">2</span><span class="wt-hanzi">khèr</span></div><div class="word-item"><span class="wt-num">3</span><span class="wt-hanzi">khè</span></div><div class="word-item"><span class="wt-num">4</span><span class="wt-hanzi">khìr</span></div></div>
+    </div>
+    <div class="map-wrap" style="width:380px; height:536px;">
+      <img src="./assets/base-map.jpg" width="380" height="536" alt="台灣底圖">
+      <div class="region-marker" style="left:287.9058823529412px; top:73.76470588235294px;"><span class="region-dot"></span><span class="region-nums" style="left:6px; top:0; transform:translateY(-50%);"><span class="pron-num">2</span></span></div><div class="region-marker" style="left:329.4823529411765px; top:126.96470588235294px;"><span class="region-dot"></span><span class="region-nums" style="left:0; top:6px; transform:translateX(-50%);"><span class="pron-num">1</span></span></div><div class="region-marker" style="left:229.34117647058824px; top:92.98823529411766px;"><span class="region-dot"></span><span class="region-nums" style="left:6px; top:0; transform:translateY(-50%);"><span class="pron-num">4</span></span></div><div class="region-marker" style="left:196.7058823529412px; top:181.05882352941177px;"><span class="region-dot"></span><span class="region-nums" style="left:6px; top:0; transform:translateY(-50%);"><span class="pron-num">1</span></span></div><div class="region-marker" style="left:303.5529411764706px; top:46.04705882352941px;"><span class="region-dot"></span><span class="region-nums" style="left:6px; top:0; transform:translateY(-50%);"><span class="pron-num">3</span></span></div><div class="region-marker" style="left:125.1764705882353px; top:349.6px;"><span class="region-dot"></span><span class="region-nums" style="left:6px; top:0; transform:translateY(-50%);"><span class="pron-num">1</span></span></div><div class="region-marker" style="left:145.29411764705884px; top:400.11764705882354px;"><span class="region-dot"></span><span class="region-nums" style="left:6px; top:0; transform:translateY(-50%);"><span class="pron-num">1</span></span></div><div class="region-marker" style="left:160.04705882352943px; top:196.7058823529412px;"><span class="region-dot"></span><span class="region-nums" style="left:6px; top:0; transform:translateY(-50%);"><span class="pron-num">2</span></span></div><div class="region-marker" style="left:56.59764705882353px; top:145.33882352941177px;"><span class="region-dot"></span><span class="region-nums" style="left:6px; top:0; transform:translateY(-50%);"><span class="pron-num">2</span></span></div><div class="region-marker" style="left:52.75294117647059px; top:270.02352941176474px;"><span class="region-dot"></span><span class="region-nums" style="left:6px; top:0; transform:translateY(-50%);"><span class="pron-num">3</span></span></div>
+    </div>
+  </div>
+</div>
+
+<footer>咬din · 台語語音腔口分布圖卡 · HDTwn 海盎台語辭典附屬系統</footer>
+
+<script>
+const ROWS_TL = [{"n": 1, "h": "khuè"}, {"n": 2, "h": "khèr"}, {"n": 3, "h": "khè"}, {"n": 4, "h": "khìr"}];
+const ROWS_POJ = [{"n": 1, "h": "khòe"}, {"n": 2, "h": "khèr"}, {"n": 3, "h": "khè"}, {"n": 4, "h": "khìr"}];
+let romSystem = 'tl';
+
+function renderTable() {
+  const list = document.getElementById('wordList');
+  const rows = romSystem === 'tl' ? ROWS_TL : ROWS_POJ;
+  list.innerHTML = rows.map(r => `<div class="word-item"><span class="wt-num">${r.n}</span><span class="wt-hanzi">${r.h}</span></div>`).join('');
+}
+
+document.getElementById('romToggle').addEventListener('click', (e) => {
+  const opt = e.target.closest('.toggle-option');
+  if (!opt) return;
+  romSystem = opt.dataset.val;
+  document.querySelectorAll('#romToggle .toggle-option').forEach(o => o.classList.toggle('active', o === opt));
+  renderTable();
+});
+
+renderTable();
+</script>
+</body>
+</html>
