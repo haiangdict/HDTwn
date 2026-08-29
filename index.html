@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>HDTwn｜海盎台語辭典</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;600;900&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
 @font-face {
   font-family: 'jf-openhuninn';
@@ -428,6 +429,56 @@ body.dial-open .main { margin-right: 420px; transition: margin-right 0.25s ease;
 .play-btn.active { border-color:var(--playing); color:var(--playing); background:rgba(139,196,168,0.1); }
 .play-btn:disabled { opacity:0.22; cursor:not-allowed; }
 
+/* 詞條卡片頂端色條＋截圖分享按鈕：跟 HLDKor 完全同一套結構／間距，僅顏色代換成
+   HDTwn 自己的主題綠色（HLDKor 用的是它自己的主題紅色），維持兩個辭典站的設計一致感。 */
+.lemma-dial-tag {
+  display: flex; align-items: center; justify-content: space-between;
+  margin: -12px -14px 10px -14px;
+  padding: 6px 8px 6px 14px;
+  min-height: 14px;
+  background: var(--accent);
+}
+.lemma-dial-tag .share-btn { color: rgba(255,255,255,0.85); }
+.lemma-dial-tag .share-btn:hover { color: #fff; }
+.share-btn {
+  background: none; border: none; color: var(--muted);
+  opacity: 0.75; cursor: pointer; font-size: 0.95rem; line-height: 1;
+  padding: 3px 5px; border-radius: 5px; transition: all 0.15s;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.share-btn:hover { opacity: 1; color: var(--accent); }
+.share-btn:disabled { opacity: 0.4; cursor: wait; }
+
+/* 截圖後的「分享／下載」選擇視窗：兩個選項都同時存在，由使用者自己決定，不由網站自動判斷擇一 */
+.share-choice-overlay {
+  display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 1199;
+}
+.share-choice-overlay.show { display: block; }
+.share-choice-modal {
+  display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+  padding: 20px; z-index: 1200; width: min(320px, 88vw); text-align: center;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+}
+.share-choice-modal.show { display: block; }
+.share-choice-title { font-size: 0.88rem; color: var(--muted); margin-bottom: 12px; }
+.share-choice-preview {
+  max-width: 100%; max-height: 200px; border-radius: 8px; border: 1px solid var(--border);
+  margin-bottom: 16px; object-fit: contain;
+}
+.share-choice-btns { display: flex; gap: 10px; margin-bottom: 10px; }
+.share-choice-btn {
+  flex: 1; padding: 11px 8px; border-radius: 10px; border: 1px solid var(--accent);
+  background: var(--accent); color: #fff; font-weight: 700; font-size: 0.92rem;
+  cursor: pointer; transition: all 0.15s; font-family: 'jf-openhuninn','Noto Serif TC',serif;
+}
+.share-choice-btn:hover { opacity: 0.88; }
+.share-choice-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.share-choice-cancel {
+  background: none; border: none; color: var(--muted); font-size: 0.82rem;
+  cursor: pointer; padding: 6px; text-decoration: underline;
+}
+
 /* ── SCROLL TO TOP ── */
 #scrollTopBtn {
   position: fixed; bottom: 28px; right: 28px;
@@ -537,6 +588,17 @@ body.dial-open .main { margin-right: 420px; transition: margin-right 0.25s ease;
   <div class="dial-panel-body" id="dialPanelBody"></div>
 </div>
 <div id="dialTooltip"></div>
+
+<div id="shareChoiceOverlay" class="share-choice-overlay" onclick="closeShareChoice()"></div>
+<div id="shareChoiceModal" class="share-choice-modal">
+  <div class="share-choice-title">截圖已完成，請選擇要如何處理</div>
+  <img id="shareChoicePreview" class="share-choice-preview" alt="截圖預覽">
+  <div class="share-choice-btns">
+    <button class="share-choice-btn" id="shareChoiceShareBtn" onclick="doShareAction()">📤 分享</button>
+    <button class="share-choice-btn" id="shareChoiceDownloadBtn" onclick="doDownloadAction()">⬇ 下載</button>
+  </div>
+  <button class="share-choice-cancel" onclick="closeShareChoice()">取消</button>
+</div>
 
 <script>
 // ══════════════════════════════════════════════════════════════════
@@ -1066,6 +1128,10 @@ function renderLemmaCard(e) {
   const url = lemmaAudioUrl(e);
   const hasAudio = !!url;
   return `<div class="lemma-entry" id="lemma-${e.id}">
+      <div class="lemma-dial-tag">
+        <span></span>
+        <button class="share-btn" onclick="shareEntryCard(event, 'lemma-${e.id}', '${String(e.word || '').replace(/'/g, "\\'")}')" title="截圖分享"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8V6a2 2 0 0 1 2-2h2"/><path d="M4 16v2a2 2 0 0 0 2 2h2"/><path d="M20 8V6a2 2 0 0 0-2-2h-2"/><path d="M20 16v2a2 2 0 0 1-2 2h-2"/><rect x="7" y="8.5" width="10" height="7" rx="1.3"/><circle cx="12" cy="12" r="1.6"/></svg></button>
+      </div>
       <div class="lemma-top-row">
         <div class="lemma-line lemma-line-top">${topHtml}</div>
         <button class="play-btn" ${hasAudio ? '' : 'disabled'}
@@ -1651,6 +1717,94 @@ function showToast(msg) {
 function scrollContentToTop() {
   const content = document.getElementById('content');
   if (content) content.scrollTo({ top: 0, behavior: 'auto' });
+}
+
+// 截圖分享：把指定的詞條方塊轉成圖片，手機上可直接叫出系統分享選單(郵件/訊息/社群)，
+// 桌面瀏覽器若不支援檔案分享，退回成直接下載圖片。仿造 HLDKor 的同一套實作。
+let _shareChoiceBlob = null;
+let _shareChoiceFileName = '';
+let _shareChoicePreviewUrl = null;
+
+async function shareEntryCard(event, elementId, wordForFileName) {
+  event.preventDefault();
+  event.stopPropagation();
+  const el = document.getElementById(elementId);
+  if (!el) return;
+  if (typeof html2canvas === 'undefined') {
+    showToast('⚠ 截圖功能載入失敗，請檢查網路連線');
+    return;
+  }
+  const btn = event.currentTarget;
+  btn.disabled = true;
+  btn.style.visibility = 'hidden'; // 截圖時先隱藏按鈕本身，畫面比較乾淨
+  try {
+    const bgColor = getComputedStyle(document.body).getPropertyValue('--bg').trim() || '#0e0e0e';
+    const canvas = await html2canvas(el, { backgroundColor: bgColor, scale: 2, useCORS: true });
+    const fileName = (wordForFileName || 'entry').replace(/[\\/:*?"<>|]/g, '') + '.png';
+
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+    if (!blob) throw new Error('canvas.toBlob 回傳空值');
+
+    openShareChoice(blob, fileName);
+  } catch (err) {
+    console.error('截圖失敗:', err);
+    showToast('⚠ 截圖失敗，請重試');
+  } finally {
+    btn.disabled = false;
+    btn.style.visibility = '';
+  }
+}
+
+// 截圖完成後，「分享」跟「下載」兩個選項同時顯示，由使用者自己決定要用哪一個——
+// 不再由網站自動判斷裝置能力擇一，因為 navigator.canShare() 在部分桌面瀏覽器上的判斷並不可靠，
+// 曾出現「誤判為可分享」卻跳出沒有下載選項的系統分享面板，導致使用者無法儲存圖片的情況。
+function openShareChoice(blob, fileName) {
+  _shareChoiceBlob = blob;
+  _shareChoiceFileName = fileName;
+  if (_shareChoicePreviewUrl) URL.revokeObjectURL(_shareChoicePreviewUrl);
+  _shareChoicePreviewUrl = URL.createObjectURL(blob);
+  document.getElementById('shareChoicePreview').src = _shareChoicePreviewUrl;
+  // 分享按鈕：裝置若明確不支援檔案分享API，才停用(仍保留下載選項)；支援與否不明確時保留可點擊，
+  // 實際點擊時再處理錯誤，避免因偵測不準確而錯誤隱藏選項
+  const shareBtn = document.getElementById('shareChoiceShareBtn');
+  const canShareFiles = !!(navigator.share);
+  shareBtn.disabled = !canShareFiles;
+  shareBtn.title = canShareFiles ? '' : '此裝置/瀏覽器不支援分享功能';
+  document.getElementById('shareChoiceOverlay').classList.add('show');
+  document.getElementById('shareChoiceModal').classList.add('show');
+}
+
+function closeShareChoice() {
+  document.getElementById('shareChoiceOverlay').classList.remove('show');
+  document.getElementById('shareChoiceModal').classList.remove('show');
+  if (_shareChoicePreviewUrl) { URL.revokeObjectURL(_shareChoicePreviewUrl); _shareChoicePreviewUrl = null; }
+  _shareChoiceBlob = null;
+}
+
+async function doShareAction() {
+  if (!_shareChoiceBlob) return;
+  try {
+    const file = new File([_shareChoiceBlob], _shareChoiceFileName, { type: 'image/png' });
+    if (navigator.canShare && !navigator.canShare({ files: [file] })) {
+      throw new Error('此裝置不支援分享此檔案');
+    }
+    await navigator.share({ files: [file], title: document.title, text: _shareChoiceFileName });
+    closeShareChoice();
+  } catch (err) {
+    if (err && err.name === 'AbortError') return; // 使用者自己取消分享面板，維持視窗開著，可再選下載
+    showToast('⚠ 分享失敗，請改用下載');
+  }
+}
+
+function doDownloadAction() {
+  if (!_shareChoiceBlob) return;
+  const url = URL.createObjectURL(_shareChoiceBlob);
+  const a = document.createElement('a');
+  a.href = url; a.download = _shareChoiceFileName;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  showToast('已下載圖片 ' + _shareChoiceFileName);
+  closeShareChoice();
 }
 document.addEventListener('DOMContentLoaded', () => {
   const content = document.getElementById('content');
