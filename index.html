@@ -331,6 +331,32 @@ input[type="text"]::placeholder { color: var(--muted); }
 .ref-word { font-weight: 600; color: var(--accent); text-decoration: none; }
 a.ref-word { cursor: pointer; }
 a.ref-word:hover { text-decoration: underline; }
+.derived-more-btn {
+  font-family: 'Space Mono', monospace; font-size: 0.7rem;
+  background: none; border: none; color: var(--accent);
+  cursor: pointer; padding: 0 0 0 4px; text-decoration: underline;
+}
+
+/* ── ETYMOLOGY BLOCK（跟 HLDKor/HLDDru 同一套設計，僅顏色沿用各自站台的 --accent） ── */
+.ety-block {
+  background: var(--surface2);
+  border-left: 3px solid var(--accent);
+  border-radius: 0 6px 6px 0;
+  padding: 7px 12px;
+  margin: 6px 0 6px 20px;
+  font-size: 0.92em;
+  color: var(--muted);
+  line-height: 1.6;
+}
+.sense-item .ety-block { margin: 4px 0 6px 0; }
+.ety-lang { margin-right: 0.35em; }
+.ety-word {
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+.ety-word:hover { text-decoration: underline; }
 
 /* ── EXAMPLE SENTENCES ── */
 .example-block {
@@ -641,7 +667,9 @@ let entries = [];            // 有詞條頁面的 Lemmata（已排除 NO_ENTRY_
 let lemmataById = {};        // 編號 -> lemma物件（含 NO_ENTRY_TYPE，供引用查詢用）
 let sensesByLemma = {};      // 編號 -> [sense物件]
 let examplesBySense = {};    // "編號_義項" -> [example物件]
-let etymologyByCode = {};    // 編號 -> etymology物件（保留供未來使用）
+let etymologyByCode = {};    // 編號 -> etymology物件
+let derivedWordsByLemma = {}; // 編號(來源詞目，無#義項編號的語源引用) -> Set("引用詞目#引用義項")
+let derivedWordsBySense = {}; // "編號_義項"(來源義項，有#義項編號的語源引用) -> Set("引用詞目#引用義項")
 
 let wordOrder = 'hanzi';   // 'hanzi'(漢字優先) | 'rom'(羅馬字優先) —— 同時控制詞目與例句順序
 let romSystem = 'TL';      // 'TL' | 'POJ'
@@ -944,6 +972,38 @@ async function loadData() {
       });
     }
 
+    // ── 派生詞反向索引 ──（仿造 HLDKor：掃描每個義項的「語源」欄位，若引用的是本詞典內的
+    // 詞目編號(純數字，可選#義項編號)，就反過來記成「被引用的詞目/義項底下有這些派生詞」。
+    // 沒有#義項編號的引用記在詞目層級（顯示在整個詞目卡片最下方）；
+    // 有#義項編號的引用記在該義項層級（顯示在該義項底下，跟近/反義詞、相關詞對齊）。
+    // + 號連接的多個語源來源，每一段都各自獨立記錄；拉丁字母+數字的 Etymology.csv 代碼
+    // 不計入（那些指向詞典外部的資料，不是本詞典的詞目，沒有「反查」的意義）。
+    derivedWordsByLemma = {};
+    derivedWordsBySense = {};
+    Object.values(sensesByLemma).forEach(senseArr => {
+      senseArr.forEach(s => {
+        const raw = (s.etymology || '').trim();
+        if (!raw) return;
+        const citingEntry = s.lemmaId + '#' + s.senseId;
+        raw.split('|').forEach(group => {
+          group.split('+').forEach(tokRaw => {
+            const tok = tokRaw.trim();
+            const m = tok.match(/^(\d+)(?:[*#](\d+))?$/);
+            if (!m) return; // 排除拉丁字母+數字(Etymology.csv代碼)
+            const targetId = m[1];
+            const targetSenseId = m[2];
+            if (targetId === s.lemmaId) return; // 理論上不會指向自己，保險起見排除
+            if (targetSenseId) {
+              const key = targetId + '_' + targetSenseId;
+              (derivedWordsBySense[key] = derivedWordsBySense[key] || new Set()).add(citingEntry);
+            } else {
+              (derivedWordsByLemma[targetId] = derivedWordsByLemma[targetId] || new Set()).add(citingEntry);
+            }
+          });
+        });
+      });
+    });
+
     // ── Examples ──
     examplesBySense = {};
     if (examplesText) {
@@ -966,7 +1026,7 @@ async function loadData() {
       });
     }
 
-    // ── Etymology（保留基礎結構，供未來擴充）──
+    // ── Etymology ──
     etymologyByCode = {};
     if (etymologyText) {
       const et = parseCSV(etymologyText);
@@ -1148,11 +1208,25 @@ function renderSenseSection(lemma) {
   const senses = sensesByLemma[lemma.id];
   if (!senses || !senses.length) return '';
   const multi = senses.length > 1;
-  const items = senses.map((s, i) => renderSingleSense(lemma, s, i, multi)).join('');
-  return `<div class="sense-list ${multi ? 'multi' : ''}">${items}</div>`;
+
+  // 語源：仿造 HLDKor——若所有義項的語源欄位一字不差地相同，代表整個詞目共用同一個
+  // 構詞來源，移到義項列表最上方顯示一次即可，不必每個義項底下都重複；
+  // 否則（含只有一個義項的情況）各自顯示在該義項底下。
+  const etyRaw = senses.map(s => (s.etymology || '').trim());
+  const etyResolved = etyRaw.map(raw => raw ? resolveEtymologyField(raw) : null);
+  const etyShared = etyRaw.every(r => r && r === etyRaw[0]) && etyResolved[0];
+
+  let html = etyShared ? `<div class="ety-block">${etyResolved[0].html}</div>` : '';
+  const items = senses.map((s, i) => {
+    const etyHtml = (!etyShared && etyResolved[i]) ? `<div class="ety-block">${etyResolved[i].html}</div>` : '';
+    return renderSingleSense(lemma, s, i, multi, etyHtml);
+  }).join('');
+  html += `<div class="sense-list ${multi ? 'multi' : ''}">${items}</div>`;
+  html += renderDerivedWordsLine(lemma.id);
+  return html;
 }
 
-function renderSingleSense(lemma, s, idx, multi) {
+function renderSingleSense(lemma, s, idx, multi, etyHtml) {
   const text = pick(s.tl, s.poj);
   const numHtml = multi ? `<span class="sense-num">${idx + 1}.</span>` : '';
   const posHtml = s.pos ? `<span class="sense-tag">${escapeHtml(s.pos)}</span>` : '';
@@ -1160,11 +1234,12 @@ function renderSingleSense(lemma, s, idx, multi) {
   const transHtml = text ? `<div class="sense-trans">${numHtml}${posHtml}${tagHtml}${escapeHtml(text)}</div>` : (numHtml || posHtml || tagHtml ? `<div class="sense-trans">${numHtml}${posHtml}${tagHtml}</div>` : '');
   const examplesHtml = renderExamplesForSense(lemma, s.senseId);
   const refsHtml = buildRefsHtml(s);
+  const derivedHtml = renderDerivedWordsForSense(lemma.id, s.senseId);
   const dialHtml = buildDialDiffHtml(s.dialDiff);
   const notesHtml = s.notes ? `<div class="ref-row"><span class="ref-label">附註</span>${escapeHtml(s.notes)}</div>` : '';
-  // 順序比照 HLDKor：翻譯/解釋 → 例句 → 近義詞/反義詞/相關詞 → 方言差 → 附註
-  // 方言差固定接在近/反義詞/相關詞下方一行（沒有近反義詞時就直接接在例句下方）。
-  return `<div class="sense-item">${transHtml}${examplesHtml}${refsHtml}${dialHtml}${notesHtml}</div>`;
+  // 順序比照 HLDKor：翻譯/解釋 → 語源(若非共用一次顯示) → 例句 → 近義詞/反義詞/相關詞 →
+  // 派生詞 → 方言差 → 附註。方言差固定接在近/反義詞/相關詞/派生詞下方一行。
+  return `<div class="sense-item">${transHtml}${etyHtml || ''}${examplesHtml}${refsHtml}${derivedHtml}${dialHtml}${notesHtml}</div>`;
 }
 
 function buildDialDiffHtml(raw) {
@@ -1466,6 +1541,137 @@ function buildRefsHtml(s) {
     rows.push(`<div class="ref-row"><span class="ref-label">${label}</span>${htmls.join('、')}</div>`);
   });
   return rows.join('');
+}
+
+// ══════════════════════════════════════════════════════════════════
+// 語源（仿造 HLDKor/HLDDru 同一套解析/渲染邏輯；跟該二站的差異只在於：
+// HDTwn 的義項欄位是「解釋」而非對應翻譯，內部詞目引用改用跟近/反義詞、相關詞
+// 一致的顯示方式——連結詞目本身的漢字/羅馬字，不是翻譯——見 resolveEtymologyToken）。
+// ══════════════════════════════════════════════════════════════════
+
+// 解析單一「語源」token：純數字(可選#義項編號)指向本詞典內的另一詞目；
+// 拉丁字母+數字指向 HLD-Etymology.csv（跨語言辭典共用，格式跟 HLDKor/HLDDru 一致）。
+function resolveEtymologyToken(token) {
+  const numMatch = token.match(/^(\d+)(?:[*#](\d+))?$/);
+  if (numMatch) {
+    const lemmaId = numMatch[1];
+    const senseId = numMatch[2] || null;
+    const targetLemma = lemmataById[lemmaId];
+    if (!targetLemma) return null; // 查無對應詞目，略過此筆
+    const hanziText = escapeHtml(targetLemma.word);
+    const romText = escapeHtml(pick(targetLemma.tl, targetLemma.poj));
+    const primary = wordOrder === 'hanzi' ? hanziText : romText;
+    const secondary = wordOrder === 'hanzi' ? romText : hanziText;
+    return {
+      type: 'numeric', id: lemmaId, senseId, primary, secondary,
+      noEntry: targetLemma.type === NO_ENTRY_TYPE
+    };
+  }
+  if (/^[A-Za-z]{3}\d+$/.test(token)) {
+    const row = etymologyByCode[token];
+    if (!row) return null; // 查無對應資料，略過此筆
+    const lang = row['語言'];
+    const word = row['詞語'];
+    const t1 = row['轉寫1'];
+    const t2 = row['轉寫2'];
+    const trans = row['翻譯'];
+    const url = row[''] || '';
+    let translit = '';
+    if (lang === '日語') {
+      translit = (t1 && t2) ? (t1 + '，' + t2) : (t1 || t2);
+    } else {
+      translit = t1; // 除日語外，其餘語別一律顯示轉寫1
+    }
+    return { type: 'latin', lang, word, translit, trans, url: (lang === '原始南島語' && url) ? url : null };
+  }
+  return null;
+}
+
+function renderEtymologyFragment(r) {
+  if (r.type === 'numeric') {
+    const secondaryHtml = r.secondary ? `（${r.secondary}）` : '';
+    if (r.noEntry) return `<span class="ref-word">${r.primary}</span>${secondaryHtml}`;
+    return `<a href="#lemma-${r.id}" class="ref-word" onclick="event.preventDefault();jumpToLemma('${r.id}')">${r.primary}</a>${secondaryHtml}`;
+  }
+  const langHtml = `<span class="ety-lang">${escapeHtml(r.lang)}</span>`;
+  const wordHtml = r.url
+    ? `<a href="${r.url}" target="_blank" rel="noopener" class="ety-word">${escapeHtml(r.word)}</a>`
+    : `<span class="ety-word">${escapeHtml(r.word)}</span>`;
+  const translitHtml = r.translit ? `（${escapeHtml(r.translit)}）` : '';
+  const transHtml = r.trans ? `「${escapeHtml(r.trans)}」` : '';
+  return langHtml + wordHtml + translitHtml + transHtml;
+}
+
+// + 代表同一句內組合多個來源（構詞分析，共用一個「源於」前綴）。
+function resolveEtymologyGroupInner(rawGroup) {
+  const tokens = rawGroup.split('+').map(t => t.trim()).filter(Boolean);
+  const resolved = tokens.map(t => resolveEtymologyToken(t)).filter(Boolean);
+  if (!resolved.length) return null;
+  return {
+    inner: resolved.map(renderEtymologyFragment).join(' + '),
+    isPureNumeric: resolved.every(r => r.type === 'numeric')
+  };
+}
+
+// | 代表多筆完全獨立的語源說法。第一筆維持原本前綴邏輯（源於／構詞省略），
+// 之後每一筆改用「＜」連接（不再重複「源於」）。
+function resolveEtymologyField(raw) {
+  const groups = raw.split('|').map(g => g.trim()).filter(Boolean);
+  const parts = [];
+  groups.forEach(g => {
+    const res = resolveEtymologyGroupInner(g);
+    if (!res) return;
+    if (parts.length === 0) {
+      parts.push((res.isPureNumeric ? '' : '源於') + res.inner);
+    } else {
+      parts.push('＜' + res.inner);
+    }
+  });
+  if (!parts.length) return null;
+  return { html: parts.join('') + '。' };
+}
+
+// 共用：把一組「引用詞目#引用義項」的集合，依引用詞目去重後，用跟近/反義詞、相關詞
+// 一致的方式顯示（renderRefToken）；超過 5 筆時收合，跟 HLDKor 一致。
+function renderDerivedWordsFromSet(citingSet, uid) {
+  if (!citingSet || !citingSet.size) return '';
+  const lemmaIds = new Set();
+  citingSet.forEach(entry => lemmaIds.add(entry.split('#')[0]));
+  const htmls = [...lemmaIds].map(lid => renderRefToken({ lemmaId: lid, senseId: null })).filter(Boolean);
+  if (!htmls.length) return '';
+  const LIMIT = 5;
+  if (htmls.length <= LIMIT) return htmls.join('、');
+  const shown = htmls.slice(0, LIMIT).join('、');
+  const restCount = htmls.length - LIMIT;
+  const moreId = 'derived-more-' + (uid || Math.random().toString(36).slice(2));
+  const rest = htmls.slice(LIMIT).join('、');
+  return `${shown}、<span id="${moreId}" class="derived-more" style="display:none">${rest}</span>`
+    + `<button class="derived-more-btn" onclick="toggleDerivedMore('${moreId}', this)" data-more="顯示全部(+${restCount})" data-less="收起">顯示全部(+${restCount})</button>`;
+}
+
+function toggleDerivedMore(id, btn) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const showing = el.style.display !== 'none';
+  el.style.display = showing ? 'none' : 'inline';
+  btn.textContent = showing ? btn.dataset.more : btn.dataset.less;
+}
+
+// 派生詞（義項層級）：語源引用有 #義項編號 時，對齊顯示在該義項底下
+function renderDerivedWordsForSense(lemmaId, senseId) {
+  if (!senseId) return '';
+  const citingSet = derivedWordsBySense[lemmaId + '_' + senseId];
+  const inner = renderDerivedWordsFromSet(citingSet, lemmaId + '-' + senseId);
+  if (!inner) return '';
+  return `<div class="ref-row"><span class="ref-label">派生詞</span>${inner}</div>`;
+}
+
+// 派生詞：反向列出「哪些詞目的語源指向這個詞目」，顯示在整個詞目卡片最下方
+function renderDerivedWordsLine(lemmaId) {
+  const citingSet = derivedWordsByLemma[lemmaId];
+  const inner = renderDerivedWordsFromSet(citingSet, lemmaId);
+  if (!inner) return '';
+  return `<div class="ref-row"><span class="ref-label">派生詞</span>${inner}</div>`;
 }
 
 function jumpToLemma(lemmaId) {
