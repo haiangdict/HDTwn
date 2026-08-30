@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>HDTwn｜海盎台語辭典</title>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;600;900&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;600;900&family=Noto+Sans+TC:wght@400;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
 @font-face {
@@ -16,6 +16,17 @@
   font-family: 'RareHanzi';
   src: url('./fonts/rare-fallback.woff2') format('woff2');
   font-weight: 400; font-style: normal; font-display: swap;
+}
+/* 語源區塊專用：跟上面同一個 jf-openhuninn 字型檔，但用 unicode-range 限定只承接
+   漢字/假名/CJK標點等範圍，刻意排除拉丁字母——讓 .ety-word 裡的拉丁字母(含變音符號)
+   一律交給後面的 Noto Sans TC 處理，不會有「這個字母剛好在子集字型裡、那個字母剛好
+   沒有」的混雜情形（見 .ety-word 規則的說明）。只影響 .ety-word，不動到全站其他地方
+   用的 'jf-openhuninn'。 */
+@font-face {
+  font-family: 'ety-cjk';
+  src: url('./fonts/jf-openhuninn-2.1-subset.woff2') format('woff2');
+  font-weight: 400; font-style: normal; font-display: swap;
+  unicode-range: U+2E80-2EFF, U+3000-303F, U+3040-30FF, U+3400-4DBF, U+4E00-9FFF, U+F900-FAFF, U+FF00-FFEF;
 }
 :root {
   --bg: #0e0e0e;
@@ -350,11 +361,19 @@ a.ref-word:hover { text-decoration: underline; }
 }
 .sense-item .ety-block { margin: 4px 0 6px 0; }
 .ety-lang { margin-right: 0.35em; }
+/* jf-openhuninn-2.1-subset 是為本站的漢字／TL・POJ羅馬字抽的子集字型，只含 POJ會用到的
+   變音符號(acute/grave/circumflex/macron等)，不含 ã、ñ、ö 這類其他語言的變音符號。語源引用
+   的外語詞彙(來自 HLD-Etymology.csv)可能是任何語言。拉丁字母跟漢字/假名分開處理：
+   漢字/假名一律交給上面宣告的 'ety-cjk'（同一份字型檔，只是限定 unicode-range），維持跟
+   全站一致的字重/字型；拉丁字母(含變音符號)一律交給 Noto Sans TC，同一個詞裡的每個
+   拉丁字母都用同一套字體，不會有「這個字母剛好在子集字型裡、那個字母剛好沒有」的混雜
+   情形（例如葡萄牙語 pão 的 ã）。 */
 .ety-word {
   color: var(--accent);
   font-weight: 600;
   text-decoration: none;
   cursor: pointer;
+  font-family: 'ety-cjk', 'RareHanzi', 'Noto Sans TC', sans-serif;
 }
 .ety-word:hover { text-decoration: underline; }
 
