@@ -350,11 +350,18 @@ a.ref-word:hover { text-decoration: underline; }
 }
 .sense-item .ety-block { margin: 4px 0 6px 0; }
 .ety-lang { margin-right: 0.35em; }
+/* jf-openhuninn-2.1-subset 是為本站的漢字／TL・POJ羅馬字抽的子集字型，只含 POJ會用到的
+   變音符號(acute/grave/circumflex/macron等)，不含 ã、ñ、ö 這類其他語言的變音符號。語源引用
+   的外語詞彙(來自 HLD-Etymology.csv)可能是任何語言，缺字時 body 字型堆疊會一路退到
+   Noto Serif TC，導致同一個詞裡缺字的那個字母字體看起來跟其他字母不一樣(例如葡萄牙語
+   pão 的 ã)。改成整個 .ety-word 統一固定用 Noto Serif TC(已透過 Google Fonts 載入)，
+   確保同一個詞的每個字母字體一致，不會因為部分字母剛好在子集字型裡而部分不在而看起來混雜。 */
 .ety-word {
   color: var(--accent);
   font-weight: 600;
   text-decoration: none;
   cursor: pointer;
+  font-family: 'Noto Serif TC', serif;
 }
 .ety-word:hover { text-decoration: underline; }
 
