@@ -771,10 +771,17 @@ function escapeHtml(s) {
 // 只改變文字顏色，不加底色/粗體。目前用最直接的完整子字串比對（不分大小寫）；
 // 如果之後遇到例句用詞目的變體、省略形等比對不到的情況，可以再另外準備一份
 // 專門用來比對高亮位置的欄位（跟 HLDKor 做法一樣）。
-function highlightTerm(rawText, rawTerm) {
+// optionalTrailingPunct：附錄類型(整句成語/俗諺)且詞目本身以句號結尾時，例句(漢字用
+// 「。」／TL・POJ用「.」)裡不管有沒有保留這個句尾標點都要能比對到——用去掉句尾標點的
+// 版本去搜尋；找到後如果文字裡緊接著剛好就是這個標點，一併反白，不留一個沒反白的句號。
+function highlightTerm(rawText, rawTerm, optionalTrailingPunct) {
   const text = rawText || '';
-  const term = (rawTerm || '').trim();
+  let term = (rawTerm || '').trim();
   if (!term) return escapeHtml(text);
+  if (optionalTrailingPunct && term.endsWith(optionalTrailingPunct)) {
+    term = term.slice(0, -optionalTrailingPunct.length);
+    if (!term) return escapeHtml(text);
+  }
   const lowerText = text.toLowerCase();
   const lowerTerm = term.toLowerCase();
   let result = '';
@@ -783,8 +790,12 @@ function highlightTerm(rawText, rawTerm) {
     const idx = lowerText.indexOf(lowerTerm, i);
     if (idx === -1) { result += escapeHtml(text.slice(i)); break; }
     result += escapeHtml(text.slice(i, idx));
-    result += '<span class="term-highlight">' + escapeHtml(text.slice(idx, idx + term.length)) + '</span>';
-    i = idx + term.length;
+    let end = idx + term.length;
+    if (optionalTrailingPunct && text.slice(end, end + optionalTrailingPunct.length) === optionalTrailingPunct) {
+      end += optionalTrailingPunct.length;
+    }
+    result += '<span class="term-highlight">' + escapeHtml(text.slice(idx, end)) + '</span>';
+    i = end;
   }
   return result;
 }
@@ -1724,10 +1735,16 @@ function renderExamplesForSense(lemma, senseId) {
 }
 
 function renderExampleBlock(lemma, ex) {
-  const hanziHtml = highlightTerm(ex.sentence, lemma.word);
+  // 附錄類型的成語/俗諺，詞目本身以句號結尾時，例句不管有沒有保留句尾標點都要能反白
+  // （見 highlightTerm 的 optionalTrailingPunct 參數）。
+  const appendixTrailingPeriod = lemma.type === '附錄' && lemma.word.trim().endsWith('。');
+  const hanziHtml = highlightTerm(ex.sentence, lemma.word, appendixTrailingPeriod ? '。' : null);
   const romText = romSystem === 'TL' ? ex.sentenceTL : (ex.sentencePOJ || ex.sentenceTL);
-  const romTerm = romSystem === 'TL' ? lemma.tl : (lemma.poj || lemma.tl);
-  const romHtml = highlightTerm(romText || '', romTerm);
+  let romTerm = romSystem === 'TL' ? lemma.tl : (lemma.poj || lemma.tl);
+  // TL/POJ 若用「/」分隔兩種腔口讀法（例如 tsi̍t gue̍h-ji̍t/tsi̍t ge̍h-li̍t），
+  // 反白時只用「/」前面的部份去比對，不比對後面那個腔口的讀法。
+  if (romTerm && romTerm.includes('/')) romTerm = romTerm.split('/')[0].trim();
+  const romHtml = highlightTerm(romText || '', romTerm, appendixTrailingPeriod ? '.' : null);
   let topHtml, bottomHtml;
   if (wordOrder === 'hanzi') {
     topHtml = hanziHtml;
