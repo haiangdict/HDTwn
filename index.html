@@ -339,6 +339,13 @@ input[type="text"]::placeholder { color: var(--muted); }
   color: var(--muted); background: var(--surface2); border: 1px solid var(--border);
   border-radius: 10px; padding: 1px 8px; margin-right: 6px;
 }
+.pron-variant-label {
+  display: inline-block;
+  font-family: 'Space Mono', monospace; font-size: 0.66rem;
+  color: #fff; background: var(--accent); border: 1px solid var(--accent);
+  border-radius: 10px; padding: 1px 8px; margin-right: 6px;
+}
+.pron-variant-num { margin-right: 5px; }
 .ref-word { font-weight: 600; color: var(--accent); text-decoration: none; }
 a.ref-word { cursor: pointer; }
 a.ref-word:hover { text-decoration: underline; }
@@ -1324,8 +1331,8 @@ function renderPronVariantRow(label, tl, poj) {
   if (!items.length) return '';
   const inner = items.length === 1
     ? escapeHtml(items[0])
-    : items.map((it, i) => (PRON_VARIANT_CIRCLED[i] || `(${i + 1})`) + escapeHtml(it)).join('、');
-  return `<div class="ety-block"><span class="ref-label">${label}</span>${inner}</div>`;
+    : items.map((it, i) => `<span class="pron-variant-num">${PRON_VARIANT_CIRCLED[i] || `(${i + 1})`}</span>${escapeHtml(it)}`).join('、');
+  return `<div class="ety-block"><span class="pron-variant-label">${label}</span>${inner}</div>`;
 }
 
 function buildPronVariantHtml(lemma) {
