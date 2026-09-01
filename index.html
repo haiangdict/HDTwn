@@ -965,7 +965,10 @@ async function loadData() {
         audioFile: row['音檔'] || '',
         categories: cats,
         type: row['類型'] || '',
-        pronDiff: row['方言差'] || ''
+        pronDiff: row['方言差'] || '',
+        heTL: row['合TL'] || '', hePOJ: row['合POJ'] || '',
+        suTL: row['俗TL'] || '', suPOJ: row['俗POJ'] || '',
+        youTL: row['又TL'] || '', youPOJ: row['又POJ'] || ''
       };
       e.tlSyl = parseSortSyllables(e.tlN, false);
       e.pojSyl = parseSortSyllables(e.pojN, true);
@@ -1229,6 +1232,7 @@ function renderLemmaCard(e) {
           onclick="togglePlay('${url.replace(/'/g, "\\'")}', this)">${hasAudio ? '▶' : '—'}</button>
       </div>
       <div class="lemma-line lemma-line-bottom">${bottomHtml}</div>
+      ${buildPronVariantHtml(e)}
       ${renderSenseSection(e)}
       ${buildPronDiffHtml(e)}
     </div>`;
@@ -1306,6 +1310,28 @@ function buildPronDiffHtml(lemma) {
   }).join('');
   if (!badges) return '';
   return `<div class="ref-row dial-diff-row pron-diff-row">${badges}</div>`;
+}
+
+// 合音／俗音／又音：仿照語源(.ety-block)的橫條樣式，詞目層級（Lemmata.csv 欄位），
+// 由上到下依序合音→俗音→又音，各佔一行，只在有資料時才顯示該行。跟其他 TL/POJ 欄位
+// 一樣用 pick() 依左側選單設定擇一顯示；欄位內以「；」分隔多筆讀法時依序編號
+// ➀➁➂...，只有一筆則不編號。
+const PRON_VARIANT_CIRCLED = ['➀','➁','➂','➃','➄','➅','➆','➇','➈','➉'];
+function renderPronVariantRow(label, tl, poj) {
+  const raw = pick(tl, poj);
+  if (!raw) return '';
+  const items = raw.split('；').map(s => s.trim()).filter(Boolean);
+  if (!items.length) return '';
+  const inner = items.length === 1
+    ? escapeHtml(items[0])
+    : items.map((it, i) => (PRON_VARIANT_CIRCLED[i] || `(${i + 1})`) + escapeHtml(it)).join('、');
+  return `<div class="ety-block"><span class="ref-label">${label}</span>${inner}</div>`;
+}
+
+function buildPronVariantHtml(lemma) {
+  return renderPronVariantRow('合音', lemma.heTL, lemma.hePOJ)
+    + renderPronVariantRow('俗音', lemma.suTL, lemma.suPOJ)
+    + renderPronVariantRow('又音', lemma.youTL, lemma.youPOJ);
 }
 
 // ══════════════════════════════════════════════════════════════════
