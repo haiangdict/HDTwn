@@ -1277,7 +1277,7 @@ function renderSingleSense(lemma, s, idx, multi, etyHtml) {
   const refsHtml = buildRefsHtml(s);
   const derivedHtml = renderDerivedWordsForSense(lemma.id, s.senseId);
   const dialHtml = buildDialDiffHtml(s.dialDiff);
-  const notesHtml = s.notes ? `<div class="ref-row"><span class="ref-label">附註</span>${escapeHtml(s.notes)}</div>` : '';
+  const notesHtml = renderNoteLine(s.notes);
   // 順序比照 HLDKor：翻譯/解釋 → 語源(若非共用一次顯示) → 例句 → 近義詞/反義詞/相關詞 →
   // 派生詞 → 方言差 → 附註。方言差固定接在近/反義詞/相關詞/派生詞下方一行。
   return `<div class="sense-item">${transHtml}${etyHtml || ''}${examplesHtml}${refsHtml}${derivedHtml}${dialHtml}${notesHtml}</div>`;
@@ -1592,6 +1592,41 @@ function renderRefToken(tok) {
     return `<span class="ref-word">${primary}</span>${secondaryHtml}`;
   }
   return `<a href="#lemma-${tok.lemmaId}" class="ref-word" onclick="event.preventDefault();jumpToLemma('${tok.lemmaId}')">${primary}</a>${secondaryHtml}`;
+}
+
+// 附註：仿照 HLDKor 的「韓文字{詞目編號}」寫法，HDTwn 改為「漢字{詞目編號}」——
+// 找到 {編號} 前面緊接著、且剛好等於該詞目本身漢字詞目的字串，換成超連結
+// （沿用 renderRefToken，跟近/反義詞、相關詞、語源的內部詞目連結完全一致的呈現方式），
+// {編號} 本身不顯示；若找不到對應詞目、或前面的字串跟目標詞目漢字對不上，原樣保留不處理。
+function renderNoteLine(raw) {
+  raw = (raw || '').trim();
+  if (!raw) return '';
+  const escaped = escapeHtml(raw);
+  const re = /\{(\d{1,7})\}/g;
+  let result = '';
+  let lastIndex = 0;
+  let m;
+  while ((m = re.exec(escaped))) {
+    const id = m[1];
+    const matchStart = m.index;
+    const matchEnd = re.lastIndex;
+    const lemma = lemmataById[id];
+    let consumedFrom = matchStart;
+    let linkHtml = null;
+    if (lemma) {
+      const word = escapeHtml(lemma.word);
+      const before = escaped.slice(lastIndex, matchStart);
+      if (word && before.endsWith(word)) {
+        consumedFrom = matchStart - word.length;
+        linkHtml = renderRefToken({ lemmaId: id, senseId: null });
+      }
+    }
+    result += escaped.slice(lastIndex, consumedFrom);
+    result += linkHtml !== null ? linkHtml : escaped.slice(consumedFrom, matchEnd);
+    lastIndex = matchEnd;
+  }
+  result += escaped.slice(lastIndex);
+  return `<div class="ref-row"><span class="ref-label">附註</span>${result}</div>`;
 }
 
 function buildRefsHtml(s) {
