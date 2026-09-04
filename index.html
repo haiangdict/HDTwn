@@ -815,6 +815,14 @@ function pick(tl, poj) {
   return poj || tl;
 }
 
+// 詞目沒有漢字（純外來詞）：e.word 是空的，只能用羅馬字顯示，見 noHanzi。
+// 詞目有漢字但漢字本身混雜了羅馬字、且該羅馬字部分會隨TL/POJ而不同（目前僅9筆）：
+// 詞語欄位存的是TL版本，詞語POJ欄位存POJ版本，顯示時依目前TL/POJ選單擇一。
+function lemmaHanziForDisplay(e) {
+  if (romSystem === 'POJ' && e.wordPOJ) return e.wordPOJ;
+  return e.word;
+}
+
 // 字母索引 / 排序：改用 TL/N.、POJ/N.（調號拼音）欄位，隨左側目前選取的
 // TL/POJ 隨之變動（不再固定用 TL 分組）。規則（依使用者指定）：
 // (1) 音節先比較「不含調號數字的拼字部分」，拼字相同再比調號數字（小者優先）；
@@ -959,11 +967,14 @@ async function loadData() {
     lemObjs.forEach(row => {
       const id = row['編號'];
       const word = row['詞語'];
-      if (!id || !word) return;
+      // 詞目沒有漢字（純外來詞借音）時，詞語欄位會是空的——只要還有TL/POJ其中之一
+      // 就是合法詞目，不能跳過；只有連編號、詞語、TL、POJ都沒有的整列空白才略過。
+      if (!id || (!word && !row['TL'] && !row['POJ'])) return;
       const cats = (row['分類'] || '').split('|').map(c => c.trim()).filter(Boolean);
       cats.forEach(c => categorySet.add(c));
       const e = {
         id, word,
+        wordPOJ: row['詞語POJ'] || '',
         tag: row['標籤'] || '',
         tl: row['TL'] || '',
         poj: row['POJ'] || '',
@@ -1220,18 +1231,27 @@ function togglePlay(url, btn) {
 }
 
 function renderLemmaCard(e) {
+  const noHanzi = !e.word;
   const homographHtml = e.homographIndex ? `<sub class="homograph-idx">${e.homographIndex}</sub>` : '';
-  const hanziHtml = escapeHtml(e.word) + (wordOrder === 'hanzi' ? homographHtml : '')
-    + (e.tag ? `<span class="lemma-tag">[${escapeHtml(e.tag)}]</span>` : '');
-  const romHtml = escapeHtml(pick(e.tl, e.poj)) + (wordOrder === 'rom' ? homographHtml : '');
-  const topHtml = wordOrder === 'hanzi' ? hanziHtml : romHtml;
-  const bottomHtml = wordOrder === 'hanzi' ? romHtml : hanziHtml;
+  const tagHtml = e.tag ? `<span class="lemma-tag">[${escapeHtml(e.tag)}]</span>` : '';
+  // 純外來詞、沒有漢字的詞目：詞條最上方固定只顯示一行TL/POJ（依左側選單，預設TL），
+  // 不再跟漢字交替顯示，縮小的第二行也不存在。
+  let topHtml, bottomHtml;
+  if (noHanzi) {
+    topHtml = escapeHtml(pick(e.tl, e.poj)) + homographHtml + tagHtml;
+    bottomHtml = null;
+  } else {
+    const hanziHtml = escapeHtml(lemmaHanziForDisplay(e)) + (wordOrder === 'hanzi' ? homographHtml : '') + tagHtml;
+    const romHtml = escapeHtml(pick(e.tl, e.poj)) + (wordOrder === 'rom' ? homographHtml : '');
+    topHtml = wordOrder === 'hanzi' ? hanziHtml : romHtml;
+    bottomHtml = wordOrder === 'hanzi' ? romHtml : hanziHtml;
+  }
   const url = lemmaAudioUrl(e);
   const hasAudio = !!url;
   return `<div class="lemma-entry" id="lemma-${e.id}">
       <div class="lemma-dial-tag">
         <span></span>
-        <button class="share-btn" onclick="shareEntryCard(event, 'lemma-${e.id}', '${String(e.word || '').replace(/'/g, "\\'")}')" title="截圖分享"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8V6a2 2 0 0 1 2-2h2"/><path d="M4 16v2a2 2 0 0 0 2 2h2"/><path d="M20 8V6a2 2 0 0 0-2-2h-2"/><path d="M20 16v2a2 2 0 0 1-2 2h-2"/><rect x="7" y="8.5" width="10" height="7" rx="1.3"/><circle cx="12" cy="12" r="1.6"/></svg></button>
+        <button class="share-btn" onclick="shareEntryCard(event, 'lemma-${e.id}', '${String(e.word || pick(e.tl, e.poj) || '').replace(/'/g, "\\'")}')" title="截圖分享"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8V6a2 2 0 0 1 2-2h2"/><path d="M4 16v2a2 2 0 0 0 2 2h2"/><path d="M20 8V6a2 2 0 0 0-2-2h-2"/><path d="M20 16v2a2 2 0 0 1-2 2h-2"/><rect x="7" y="8.5" width="10" height="7" rx="1.3"/><circle cx="12" cy="12" r="1.6"/></svg></button>
       </div>
       <div class="lemma-top-row">
         <div class="lemma-line lemma-line-top">${topHtml}</div>
@@ -1239,7 +1259,7 @@ function renderLemmaCard(e) {
           title="${hasAudio ? '播放音檔' : '無音檔'}"
           onclick="togglePlay('${url.replace(/'/g, "\\'")}', this)">${hasAudio ? '▶' : '—'}</button>
       </div>
-      <div class="lemma-line lemma-line-bottom">${bottomHtml}</div>
+      ${bottomHtml !== null ? `<div class="lemma-line lemma-line-bottom">${bottomHtml}</div>` : ''}
       ${wordOrder === 'hanzi' ? (renderVariantCharsHtml(e) + buildPronVariantHtml(e)) : (buildPronVariantHtml(e) + renderVariantCharsHtml(e))}
       ${renderSenseSection(e)}
       ${buildPronDiffHtml(e)}
@@ -1598,11 +1618,19 @@ function parseRefTokens(raw) {
 function renderRefToken(tok) {
   const lemma = lemmataById[tok.lemmaId];
   if (!lemma) return null;
-  const hanziText = escapeHtml(lemma.word);
-  const romText = escapeHtml(pick(lemma.tl, lemma.poj));
-  const primary = wordOrder === 'hanzi' ? hanziText : romText;
-  const secondary = wordOrder === 'hanzi' ? romText : hanziText;
-  const secondaryHtml = secondary ? `（${secondary}）` : '';
+  // 沒有漢字的純外來詞：只能用羅馬字當引用文字，不管漢字優先/羅馬字優先都一樣，
+  // 後面也不加（）——沒有漢字可以放進括號裡。
+  let primary, secondaryHtml;
+  if (!lemma.word) {
+    primary = escapeHtml(pick(lemma.tl, lemma.poj));
+    secondaryHtml = '';
+  } else {
+    const hanziText = escapeHtml(lemmaHanziForDisplay(lemma));
+    const romText = escapeHtml(pick(lemma.tl, lemma.poj));
+    primary = wordOrder === 'hanzi' ? hanziText : romText;
+    const secondary = wordOrder === 'hanzi' ? romText : hanziText;
+    secondaryHtml = secondary ? `（${secondary}）` : '';
+  }
   if (lemma.type === NO_ENTRY_TYPE) {
     return `<span class="ref-word">${primary}</span>${secondaryHtml}`;
   }
@@ -1665,10 +1693,16 @@ function resolveEtymologyToken(token) {
     const senseId = numMatch[2] || null;
     const targetLemma = lemmataById[lemmaId];
     if (!targetLemma) return null; // 查無對應詞目，略過此筆
-    const hanziText = escapeHtml(targetLemma.word);
-    const romText = escapeHtml(pick(targetLemma.tl, targetLemma.poj));
-    const primary = wordOrder === 'hanzi' ? hanziText : romText;
-    const secondary = wordOrder === 'hanzi' ? romText : hanziText;
+    let primary, secondary;
+    if (!targetLemma.word) {
+      primary = escapeHtml(pick(targetLemma.tl, targetLemma.poj));
+      secondary = '';
+    } else {
+      const hanziText = escapeHtml(lemmaHanziForDisplay(targetLemma));
+      const romText = escapeHtml(pick(targetLemma.tl, targetLemma.poj));
+      primary = wordOrder === 'hanzi' ? hanziText : romText;
+      secondary = wordOrder === 'hanzi' ? romText : hanziText;
+    }
     return {
       type: 'numeric', id: lemmaId, senseId, primary, secondary,
       noEntry: targetLemma.type === NO_ENTRY_TYPE
