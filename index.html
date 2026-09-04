@@ -975,7 +975,8 @@ async function loadData() {
         pronDiff: row['方言差'] || '',
         heTL: row['合TL'] || '', hePOJ: row['合POJ'] || '',
         suTL: row['俗TL'] || '', suPOJ: row['俗POJ'] || '',
-        youTL: row['又TL'] || '', youPOJ: row['又POJ'] || ''
+        youTL: row['又TL'] || '', youPOJ: row['又POJ'] || '',
+        variantChars: row['異用字'] || ''
       };
       e.tlSyl = parseSortSyllables(e.tlN, false);
       e.pojSyl = parseSortSyllables(e.pojN, true);
@@ -1239,7 +1240,7 @@ function renderLemmaCard(e) {
           onclick="togglePlay('${url.replace(/'/g, "\\'")}', this)">${hasAudio ? '▶' : '—'}</button>
       </div>
       <div class="lemma-line lemma-line-bottom">${bottomHtml}</div>
-      ${buildPronVariantHtml(e)}
+      ${wordOrder === 'hanzi' ? (renderVariantCharsHtml(e) + buildPronVariantHtml(e)) : (buildPronVariantHtml(e) + renderVariantCharsHtml(e))}
       ${renderSenseSection(e)}
       ${buildPronDiffHtml(e)}
     </div>`;
@@ -1339,6 +1340,20 @@ function buildPronVariantHtml(lemma) {
   return renderPronVariantRow('合音', lemma.heTL, lemma.hePOJ)
     + renderPronVariantRow('俗音', lemma.suTL, lemma.suPOJ)
     + renderPronVariantRow('又音', lemma.youTL, lemma.youPOJ);
+}
+
+// 異用字：設計與合音/俗音/又音相同（.ety-block樣式、；分隔、➀➁➂編號），
+// 差別是沒有TL/POJ之分，只有一欄資料。跟合音/俗音/又音的上下順序有互動關係，
+// 由呼叫端（renderLemmaCard）依目前「漢字優先/羅馬字優先」決定排列順序，這裡只負責渲染本身。
+function renderVariantCharsHtml(lemma) {
+  const raw = (lemma.variantChars || '').trim();
+  if (!raw) return '';
+  const items = raw.split('；').map(s => s.trim()).filter(Boolean);
+  if (!items.length) return '';
+  const inner = items.length === 1
+    ? escapeHtml(items[0])
+    : items.map((it, i) => `<span class="pron-variant-num">${PRON_VARIANT_CIRCLED[i] || `(${i + 1})`}</span>${escapeHtml(it)}`).join('、');
+  return `<div class="ety-block"><span class="pron-variant-label">異用字</span>${inner}</div>`;
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -1599,8 +1614,8 @@ function renderRefToken(tok) {
 // 搭配哪個羅馬字系統，都跟著左側「漢字優先/羅馬字優先」和「TL/POJ」選單走）。
 // 注意 HDTwn 跟 HLDKor 不同：HDTwn 的台文本身就是詞目（source language），不是另一語言
 // 的翻譯，所以不需要（也不應該要求）在 {編號} 前面另外打一次該詞目的漢字才能辨認——
-// 單獨的 {編號} 就足夠。若 {編號} 前面剛好已經手動打了跟目標詞目一模一樣的漢字
-// （測試期間留下的舊格式），也一併吃掉該漢字、只留下超連結，避免重複顯示。
+// 單獨的 {編號} 就足夠。只替換 {編號} 本身，不去動前面的文字（就算前面剛好出現
+// 跟目標詞目相同的字也不吃掉），避免誤刪剛好相同的文字。
 function renderNoteLine(raw) {
   raw = (raw || '').trim();
   if (!raw) return '';
@@ -1614,18 +1629,9 @@ function renderNoteLine(raw) {
     const matchStart = m.index;
     const matchEnd = re.lastIndex;
     const lemma = lemmataById[id];
-    let consumedFrom = matchStart;
-    let linkHtml = null;
-    if (lemma) {
-      linkHtml = renderRefToken({ lemmaId: id, senseId: null });
-      const word = escapeHtml(lemma.word);
-      const before = escaped.slice(lastIndex, matchStart);
-      if (word && before.endsWith(word)) {
-        consumedFrom = matchStart - word.length;
-      }
-    }
-    result += escaped.slice(lastIndex, consumedFrom);
-    result += linkHtml !== null ? linkHtml : escaped.slice(consumedFrom, matchEnd);
+    const linkHtml = lemma ? renderRefToken({ lemmaId: id, senseId: null }) : null;
+    result += escaped.slice(lastIndex, matchStart);
+    result += linkHtml !== null ? linkHtml : escaped.slice(matchStart, matchEnd);
     lastIndex = matchEnd;
   }
   result += escaped.slice(lastIndex);
