@@ -328,8 +328,6 @@ input[type="text"]::placeholder { color: var(--muted); }
 /* 語音比較徽章掛在整個詞目卡片最下方（不屬於任何一個義項），
    用一條淺分隔線跟上面的義項列表區隔開，避免看起來像屬於最後一個義項。 */
 .pron-diff-row { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border); }
-.pron-diff-badge { color: var(--accent2); background: rgba(139,196,168,0.12); border-color: var(--accent2); }
-.pron-diff-badge:hover { background: var(--accent2); color: #0d1410; }
 
 /* ── REFERENCE FIELDS ── */
 .ref-row { margin-top: 5px; font-size: 0.88em; color: var(--muted); line-height: 1.6; }
@@ -838,6 +836,9 @@ const OU_DOT = 'o͘'; // POJ 專用「o͘」，用於字母索引 bucket key
 // 每個音節拆成「拼字（小寫）＋調號數字」。
 // POJ 模式下把 o͘ 換成 "o~"：'~' 的字元碼大於任何小寫字母、小於 'p'，
 // 使得 o͘ 開頭的音節排在所有 o?? 之後、p?? 之前，且不影響其餘比較結果。
+// TL 模式下 o͘（combining dot）不是正常拼法（TL 一律寫成雙 o），但少數地名/專有名詞
+// 開頭大寫的「Oo」在 TL/N. 欄位裡是用「O͘」表示，所以TL模式改把 o͘ 還原成一般的 oo，
+// 跟其他oo開頭的詞排在一起，不要另外獨立出去。
 function parseSortSyllables(raw, pojMode) {
   let s = (raw || '').trim();
   if (!s) return [];
@@ -847,10 +848,11 @@ function parseSortSyllables(raw, pojMode) {
   const parts = s.split(/[\s-]+/).map(p => p.trim()).filter(Boolean);
   return parts.map(p => {
     const m = p.match(/^(.*?)(\d+)$/);
-    let base = (m ? m[1] : p).toLowerCase();
+    const rawBase = m ? m[1] : p;
     const toneStr = m ? m[2] : '';
-    if (pojMode) base = base.split(OU_DOT).join('o~');
-    return { base, key: base + toneStr };
+    let base = rawBase.toLowerCase();
+    base = pojMode ? base.split(OU_DOT).join('o~') : base.split(OU_DOT).join('oo');
+    return { base, key: base + toneStr, orig: rawBase };
   });
 }
 
@@ -872,8 +874,23 @@ function getLetterKey(e) {
   return ch;
 }
 
-// 兩個詞目排序比較：逐音節比較（拼字→調號數字），該音節無法決定時先比第一個
-// 漢字，仍相同才繼續下一個音節；全部比完仍相同則依編號排序（維持穩定）。
+// 大小寫排序之最終比較：只有在前面(不分大小寫)已經完全比不出高下時才會用到，
+// 逐字元比較，同一個字母大小寫不同時小寫排前面、大寫排後面。
+function compareCaseTiebreak(a, b) {
+  const n = Math.min(a.length, b.length);
+  for (let i = 0; i < n; i++) {
+    if (a[i] === b[i]) continue;
+    const aLower = a[i] === a[i].toLowerCase();
+    const bLower = b[i] === b[i].toLowerCase();
+    if (aLower !== bLower) return aLower ? -1 : 1;
+    return a[i] < b[i] ? -1 : 1;
+  }
+  return a.length - b.length;
+}
+
+// 兩個詞目排序比較：逐音節比較（拼字→調號數字，不分大小寫）， 該音節無法決定時先比
+// 第一個漢字，仍相同才繼續下一個音節；全部比完仍相同時，才依大小寫做最後依據
+// （小寫排前面、大寫排後面）；連大小寫都相同才依編號排序（維持穩定）。
 function compareEntries(a, b) {
   const sylA = getSortSyllables(a) || [];
   const sylB = getSortSyllables(b) || [];
@@ -889,6 +906,11 @@ function compareEntries(a, b) {
     if (hanziA !== hanziB) return hanziA < hanziB ? -1 : 1;
   }
   if (hanziA !== hanziB) return hanziA < hanziB ? -1 : 1;
+  for (let i = 0; i < n; i++) {
+    const oa = sylA[i] ? sylA[i].orig : '';
+    const ob = sylB[i] ? sylB[i].orig : '';
+    if (oa !== ob) return compareCaseTiebreak(oa, ob);
+  }
   return parseInt(a.id, 10) - parseInt(b.id, 10);
 }
 
