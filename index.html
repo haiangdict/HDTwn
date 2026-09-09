@@ -216,15 +216,18 @@ input[type="text"]::placeholder { color: var(--muted); }
 .sb-sec-hdr:hover { color: var(--accent2); }
 .sb-sec-hdr .sb-arrow { margin-left: auto; font-size: 0.55rem; opacity: 0.6; }
 .sb-sec-body.closed { display: none; }
-.sb-all-row, .sb-l2-item {
+.sb-all-row, .sb-l1-item, .sb-l1-group, .sb-l2-item {
   display: flex; align-items: center; gap: 8px;
   padding: 6px 13px;
   cursor: pointer; font-size: 0.82rem; color: var(--muted);
   transition: all 0.13s; border-left: 3px solid transparent;
 }
-.sb-all-row:hover, .sb-l2-item:hover { background: var(--surface); color: var(--text); }
+.sb-l2-item.nested { padding-left: 27px; }
+.sb-l1-group-label { flex: 1; }
+.sb-l1-group .sb-arrow { font-size: 0.55rem; opacity: 0.6; }
+.sb-all-row:hover, .sb-l1-item:hover, .sb-l1-group:hover, .sb-l2-item:hover { background: var(--surface); color: var(--text); }
 .sb-all-row.sel { color: var(--accent2); border-left-color: var(--accent2); background: rgba(139,196,168,0.06); }
-.sb-l2-item.sel { color: var(--text); border-left-color: var(--accent2); }
+.sb-l1-item.sel, .sb-l1-group.sel, .sb-l2-item.sel { color: var(--text); border-left-color: var(--accent2); }
 .sb-chk {
   width: 14px; height: 14px; border-radius: 3px; flex-shrink: 0;
   border: 1.5px solid var(--border); background: transparent;
@@ -706,6 +709,61 @@ const SUB_PAGE_SIZE = 400;
 let ALL_CATEGORIES = [];
 let selectedCategories = new Set();
 let categorySectionOpen = false;
+let CATEGORY_TREE = []; // 分類側邊欄用：[{type:'group',name:上層,children:[下層...]} | {type:'leaf',name:單層分類}]
+let openCategoryGroups = new Set(); // 目前展開中的上層分類名稱
+
+// 分類（下層）→上層對照表。除「外來詞」「節氣」本身就只有一層（不在此表中）以外，
+// 其餘每個下層分類都對應唯一一個上層分類。
+const CATEGORY_PARENTS = {
+  '交通、運輸': '交通、訊息', '旅運設施': '交通、訊息', '道路、橋梁': '交通、訊息', '郵電、網路': '交通、訊息',
+  '人種、民族': '人及人體', '反應、表情': '人及人體', '感官動作': '人及人體', '泛稱': '人及人體', '生理構造': '人及人體', '肢體動作': '人及人體',
+  '個性風格': '人物品評', '才智能力': '人物品評', '氣質態度': '人物品評', '道德評價': '人物品評', '體態樣貌': '人物品評',
+  '交際應酬': '人際關係、社交', '婚喪喜慶': '人際關係、社交', '待人處事': '人際關係、社交',
+  '首字一畫': '俗諺（依首字筆畫排序）', '首字七畫': '俗諺（依首字筆畫排序）', '首字三畫': '俗諺（依首字筆畫排序）', '首字九畫': '俗諺（依首字筆畫排序）',
+  '首字二畫': '俗諺（依首字筆畫排序）', '首字五畫': '俗諺（依首字筆畫排序）', '首字八畫': '俗諺（依首字筆畫排序）', '首字六畫': '俗諺（依首字筆畫排序）',
+  '首字其他筆畫': '俗諺（依首字筆畫排序）', '首字十一畫': '俗諺（依首字筆畫排序）', '首字十七畫': '俗諺（依首字筆畫排序）', '首字十三畫': '俗諺（依首字筆畫排序）',
+  '首字十九畫': '俗諺（依首字筆畫排序）', '首字十二畫': '俗諺（依首字筆畫排序）', '首字十五畫': '俗諺（依首字筆畫排序）', '首字十八畫': '俗諺（依首字筆畫排序）',
+  '首字十六畫': '俗諺（依首字筆畫排序）', '首字十四畫': '俗諺（依首字筆畫排序）', '首字十畫': '俗諺（依首字筆畫排序）', '首字四畫': '俗諺（依首字筆畫排序）',
+  '其他動物': '動物', '動物形體、行為': '動物', '昆蟲類': '動物', '爬蟲、兩棲類': '動物', '獸類': '動物', '禽類': '動物', '魚蝦海獸': '動物',
+  '山脈': '地名', '廟宇': '地名', '文教處所': '地名', '河川': '地名', '海港': '地名', '舊地名': '地名',
+  '地理': '天文、地理', '天文': '天文、地理', '氣候溫度': '天文、地理', '自然現象': '天文、地理', '資源礦物': '天文、地理',
+  '相關器具、活動': '宗教、民俗', '神明、鬼怪、教派': '宗教、民俗', '神職、神巫、信徒': '宗教、民俗',
+  '居住環境': '建築、居所', '建築物、結構': '建築、居所', '房屋租賃、搬遷': '建築、居所',
+  '境況、狀態-擬事': '形容用語', '境況、狀態-擬人': '形容用語', '境況、狀態-擬物': '形容用語', '形貌、體積': '形容用語',
+  '性質、程度': '形容用語', '擬聲、擬態': '形容用語', '顏色、氣味': '形容用語',
+  '心理活動': '心理', '心理狀態': '心理',
+  '安坑輕軌': '捷運線站名', '新北捷運環狀線': '捷運線站名', '桃園機場捷運': '捷運線站名', '淡海輕軌': '捷運線站名',
+  '臺中捷運綠線': '捷運線站名', '臺北捷運中和新蘆線': '捷運線站名', '臺北捷運文湖線': '捷運線站名', '臺北捷運松山新店線': '捷運線站名',
+  '臺北捷運板南線': '捷運線站名', '臺北捷運淡水信義線': '捷運線站名', '高雄捷運橘線': '捷運線站名', '高雄捷運紅線': '捷運線站名', '高雄輕軌': '捷運線站名',
+  '休閒、娛樂': '文教、體育、休旅', '戲劇、音樂': '文教、體育、休旅', '教育、學術': '文教、體育、休旅',
+  '文學、藝術': '文教、體育、休旅', '旅行': '文教、體育、休旅', '體育、運動': '文教、體育、休旅',
+  '時間節令': '時間、空間', '空間方位': '時間、空間',
+  '植物形體、狀態': '植物', '花草樹木': '植物', '蔬果作物': '植物',
+  '外交': '法、政、軍事', '政治': '法、政、軍事', '法律': '法、政、軍事', '軍事': '法、政、軍事',
+  '南迴線': '火車線站名', '支線——內灣線': '火車線站名', '支線——六家線': '火車線站名', '支線——平溪線': '火車線站名',
+  '支線——沙崙線': '火車線站名', '支線——深澳線': '火車線站名', '支線——集集線': '火車線站名', '東部幹線': '火車線站名',
+  '西部幹線——屏東線': '火車線站名', '西部幹線——山線': '火車線站名', '西部幹線——海線': '火車線站名', '阿里山林業鐵路': '火車線站名',
+  '代名詞': '特殊詞類', '副詞': '特殊詞類', '助詞、嘆詞': '特殊詞類', '數詞、量詞': '特殊詞類', '疑問詞': '特殊詞類', '連詞、介詞': '特殊詞類',
+  '廢棄物': '生活', '災禍': '生活', '生活勞動': '生活', '生活狀況': '生活', '生活用品': '生活', '生產工具': '生活',
+  '傷疾病痛': '生養、醫療', '生養老死': '生養、醫療', '醫療保健': '生養、醫療',
+  '七畫': '百家姓', '三畫': '百家姓', '九畫': '百家姓', '二畫': '百家姓', '五畫': '百家姓', '八畫': '百家姓', '六畫': '百家姓',
+  '其他筆畫': '百家姓', '十一畫': '百家姓', '十七畫': '百家姓', '十三畫': '百家姓', '十九畫': '百家姓', '十二畫': '百家姓',
+  '十五畫': '百家姓', '十八畫': '百家姓', '十六畫': '百家姓', '十四畫': '百家姓', '十畫': '百家姓', '四畫': '百家姓',
+  '國家、社會、民眾': '群體及家庭', '宗族、家庭': '群體及家庭', '性別、婚姻': '群體及家庭', '組織團體': '群體及家庭',
+  '其他': '臺灣縣市鄉鎮區名', '南投縣': '臺灣縣市鄉鎮區名', '嘉義市': '臺灣縣市鄉鎮區名', '嘉義縣': '臺灣縣市鄉鎮區名',
+  '基隆市': '臺灣縣市鄉鎮區名', '宜蘭縣': '臺灣縣市鄉鎮區名', '屏東縣': '臺灣縣市鄉鎮區名', '彰化縣': '臺灣縣市鄉鎮區名',
+  '新北市': '臺灣縣市鄉鎮區名', '新竹市': '臺灣縣市鄉鎮區名', '新竹縣': '臺灣縣市鄉鎮區名', '桃園市': '臺灣縣市鄉鎮區名',
+  '澎湖縣': '臺灣縣市鄉鎮區名', '臺中市': '臺灣縣市鄉鎮區名', '臺北市': '臺灣縣市鄉鎮區名', '臺南市': '臺灣縣市鄉鎮區名',
+  '臺東縣': '臺灣縣市鄉鎮區名', '花蓮縣': '臺灣縣市鄉鎮區名', '苗栗縣': '臺灣縣市鄉鎮區名', '連江縣': '臺灣縣市鄉鎮區名',
+  '金門縣': '臺灣縣市鄉鎮區名', '雲林縣': '臺灣縣市鄉鎮區名', '高雄市': '臺灣縣市鄉鎮區名',
+  '珠寶飾品': '衣著裝扮', '理容、化妝': '衣著裝扮', '縫紉洗熨': '衣著裝扮', '衣帽鞋襪': '衣著裝扮',
+  '一般動詞-活動動詞': '語言、泛稱', '一般動詞-行為動詞': '語言、泛稱', '一般動詞-靜態動詞': '語言、泛稱',
+  '事、物泛稱': '語言、泛稱', '詈語': '語言、泛稱', '語言、文字、符號': '語言、泛稱',
+  '財務單位、活動': '財務經濟', '錢財資產': '財務經濟',
+  '商業': '身分及職業', '地位、身世、背景': '身分及職業', '服務業及其他': '身分及職業', '漁牧業': '身分及職業',
+  '相關用語': '身分及職業', '科技、工業': '身分及職業', '稱謂輩分': '身分及職業', '軍公教業': '身分及職業', '農林業': '身分及職業',
+  '食物、飲料、煙酒': '飲食', '飲食物具': '飲食', '飲食行為': '飲食'
+};
 
 let searchQuery = '';
 let searchExact = false;
@@ -836,9 +894,9 @@ const OU_DOT = 'o͘'; // POJ 專用「o͘」，用於字母索引 bucket key
 // 每個音節拆成「拼字（小寫）＋調號數字」。
 // POJ 模式下把 o͘ 換成 "o~"：'~' 的字元碼大於任何小寫字母、小於 'p'，
 // 使得 o͘ 開頭的音節排在所有 o?? 之後、p?? 之前，且不影響其餘比較結果。
-// TL 模式下 o͘（combining dot）不是正常拼法（TL 一律寫成雙 o），但少數地名/專有名詞
-// 開頭大寫的「Oo」在 TL/N. 欄位裡是用「O͘」表示，所以TL模式改把 o͘ 還原成一般的 oo，
-// 跟其他oo開頭的詞排在一起，不要另外獨立出去。
+// 注意 o͘（combining dot）是 POJ 專屬的字母，TL 一律寫成雙 o「oo」——TL/N. 欄位理論上
+// 不會出現 o͘，所以 TL 模式不做任何 o͘→oo 的轉換或特殊處理，維持 TL/POJ 各自獨立比對，
+// 不互相干涉。若 TL/N. 欄位實際上出現了 o͘，代表那筆資料本身有問題，見對話另外回報。
 function parseSortSyllables(raw, pojMode) {
   let s = (raw || '').trim();
   if (!s) return [];
@@ -851,7 +909,7 @@ function parseSortSyllables(raw, pojMode) {
     const rawBase = m ? m[1] : p;
     const toneStr = m ? m[2] : '';
     let base = rawBase.toLowerCase();
-    base = pojMode ? base.split(OU_DOT).join('o~') : base.split(OU_DOT).join('oo');
+    if (pojMode) base = base.split(OU_DOT).join('o~');
     return { base, key: base + toneStr, orig: rawBase };
   });
 }
@@ -992,7 +1050,9 @@ async function loadData() {
       // 詞目沒有漢字（純外來詞借音）時，詞語欄位會是空的——只要還有TL/POJ其中之一
       // 就是合法詞目，不能跳過；只有連編號、詞語、TL、POJ都沒有的整列空白才略過。
       if (!id || (!word && !row['TL'] && !row['POJ'])) return;
-      const cats = (row['分類'] || '').split('|').map(c => c.trim()).filter(Boolean);
+      // 「全部」不是真正的分類，是資料裡混進來的雜訊標記（原本應該是「百家姓」或
+      // 「俗諺（依首字筆畫排序）」卻沒填對），這裡直接濾掉，不當作分類使用。
+      const cats = (row['分類'] || '').split('|').map(c => c.trim()).filter(c => c && c !== '全部');
       cats.forEach(c => categorySet.add(c));
       const e = {
         id, word,
@@ -1020,6 +1080,24 @@ async function loadData() {
     computeHomographIndices();
     ALL_CATEGORIES = [...categorySet].sort();
     selectedCategories = new Set(ALL_CATEGORIES);
+
+    // 分類側邊欄：把下層分類依CATEGORY_PARENTS歸類到各自的上層分類群組；
+    // 沒有對應上層的（目前只有「外來詞」「節氣」）當作獨立單層項目，跟各上層群組
+    // 放在同一層排序。群組內的下層、跟最外層的群組/獨立項目，都用字串排序。
+    const groups = {};
+    const standalone = [];
+    categorySet.forEach(c => {
+      const parent = CATEGORY_PARENTS[c];
+      if (parent) {
+        (groups[parent] = groups[parent] || new Set()).add(c);
+      } else {
+        standalone.push(c);
+      }
+    });
+    const topLevel = Object.keys(groups).map(p => ({ type: 'group', name: p, children: [...groups[p]].sort() }))
+      .concat(standalone.map(s => ({ type: 'leaf', name: s })));
+    topLevel.sort((a, b) => a.name < b.name ? -1 : (a.name > b.name ? 1 : 0));
+    CATEGORY_TREE = topLevel;
 
     // ── Senses ──
     sensesByLemma = {};
@@ -1174,12 +1252,33 @@ function buildSidebar() {
       <div class="sb-chk ${allCatSel ? 'sel' : ''}">${allCatSel ? '✓' : ''}</div>
       <span>全部</span>
     </div>`;
-  ALL_CATEGORIES.forEach(cat => {
-    const sel = selectedCategories.has(cat);
-    html += `<div class="sb-l2-item ${sel ? 'sel' : ''}" onclick="toggleCategory('${cat.replace(/'/g, "\\'")}')">
-      <div class="sb-chk ${sel ? 'sel' : ''}">${sel ? '✓' : ''}</div>
-      <span>${escapeHtml(cat)}</span>
+  CATEGORY_TREE.forEach(node => {
+    if (node.type === 'leaf') {
+      // 單層分類（目前只有「外來詞」「節氣」）：跟上層分類群組同一層，沒有展開箭頭。
+      const sel = selectedCategories.has(node.name);
+      html += `<div class="sb-l1-item ${sel ? 'sel' : ''}" onclick="toggleCategory('${node.name.replace(/'/g, "\\'")}')">
+        <div class="sb-chk ${sel ? 'sel' : ''}">${sel ? '✓' : ''}</div>
+        <span>${escapeHtml(node.name)}</span>
+      </div>`;
+      return;
+    }
+    // 上層分類群組：勾選方塊點下去選取/取消該群組全部下層分類；點文字或箭頭則展開/收合。
+    const allChildrenSel = node.children.every(c => selectedCategories.has(c));
+    const open = openCategoryGroups.has(node.name);
+    html += `<div class="sb-l1-group ${allChildrenSel ? 'sel' : ''}">
+      <div class="sb-chk ${allChildrenSel ? 'sel' : ''}" onclick="event.stopPropagation(); toggleCategoryGroupAll('${node.name.replace(/'/g, "\\'")}')">${allChildrenSel ? '✓' : ''}</div>
+      <span class="sb-l1-group-label" onclick="toggleCategoryGroupExpand('${node.name.replace(/'/g, "\\'")}')">${escapeHtml(node.name)}</span>
+      <span class="sb-arrow" onclick="toggleCategoryGroupExpand('${node.name.replace(/'/g, "\\'")}')">${open ? '▾' : '▸'}</span>
     </div>`;
+    if (open) {
+      node.children.forEach(cat => {
+        const sel = selectedCategories.has(cat);
+        html += `<div class="sb-l2-item nested ${sel ? 'sel' : ''}" onclick="toggleCategory('${cat.replace(/'/g, "\\'")}')">
+          <div class="sb-chk ${sel ? 'sel' : ''}">${sel ? '✓' : ''}</div>
+          <span>${escapeHtml(cat)}</span>
+        </div>`;
+      });
+    }
   });
   html += `</div>`;
 
@@ -1213,6 +1312,19 @@ function toggleCategory(cat) {
 function toggleAllCategories() {
   if (selectedCategories.size >= ALL_CATEGORIES.length) selectedCategories.clear();
   else ALL_CATEGORIES.forEach(c => selectedCategories.add(c));
+  refreshAfterFilterChange();
+}
+function toggleCategoryGroupExpand(parentName) {
+  if (openCategoryGroups.has(parentName)) openCategoryGroups.delete(parentName);
+  else openCategoryGroups.add(parentName);
+  buildSidebar();
+}
+function toggleCategoryGroupAll(parentName) {
+  const node = CATEGORY_TREE.find(n => n.type === 'group' && n.name === parentName);
+  if (!node) return;
+  const allSel = node.children.every(c => selectedCategories.has(c));
+  if (allSel) node.children.forEach(c => selectedCategories.delete(c));
+  else node.children.forEach(c => selectedCategories.add(c));
   refreshAfterFilterChange();
 }
 function refreshAfterFilterChange() {
@@ -1252,6 +1364,17 @@ function togglePlay(url, btn) {
   });
 }
 
+// 分類顯示：詞目層級，一個分類（上層+下層，或無上層的單層分類）佔一行，
+// 統一放在詞條最下方、語音比較徽章（buildPronDiffHtml）之上。
+function buildCategoryLinesHtml(e) {
+  if (!e.categories || !e.categories.length) return '';
+  return e.categories.map(c => {
+    const parent = CATEGORY_PARENTS[c];
+    const text = parent ? `${escapeHtml(parent)} ＞ ${escapeHtml(c)}` : escapeHtml(c);
+    return `<div class="ref-row">${text}</div>`;
+  }).join('');
+}
+
 function renderLemmaCard(e) {
   const noHanzi = !e.word;
   const homographHtml = e.homographIndex ? `<sub class="homograph-idx">${e.homographIndex}</sub>` : '';
@@ -1284,6 +1407,7 @@ function renderLemmaCard(e) {
       ${bottomHtml !== null ? `<div class="lemma-line lemma-line-bottom">${bottomHtml}</div>` : ''}
       ${wordOrder === 'hanzi' ? (renderVariantCharsHtml(e) + buildPronVariantHtml(e)) : (buildPronVariantHtml(e) + renderVariantCharsHtml(e))}
       ${renderSenseSection(e)}
+      ${buildCategoryLinesHtml(e)}
       ${buildPronDiffHtml(e)}
     </div>`;
 }
