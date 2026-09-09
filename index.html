@@ -1371,7 +1371,7 @@ function buildCategoryLinesHtml(e) {
   return e.categories.map(c => {
     const parent = CATEGORY_PARENTS[c];
     const text = parent ? `${escapeHtml(parent)} ＞ ${escapeHtml(c)}` : escapeHtml(c);
-    return `<div class="ref-row">${text}</div>`;
+    return `<div class="ety-block"><span class="pron-variant-label">分類</span>${text}</div>`;
   }).join('');
 }
 
