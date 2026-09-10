@@ -711,13 +711,13 @@ let selectedCategories = new Set();
 let categorySectionOpen = false;
 let CATEGORY_TREE = []; // 分類側邊欄用：[{type:'group',name:上層,children:[下層...]} | {type:'leaf',name:單層分類}]
 let openCategoryGroups = new Set(); // 目前展開中的上層分類名稱（分類、附錄共用同一個Set，因為上層名稱不會重複）
-let CATEGORY_ONLY_NAMES = []; // 「分類」選單自己的「全部」勾選用：扣掉附錄後的下層/單層分類名稱
+let CATEGORY_ONLY_NAMES = []; // 「分類」選單（扣掉附錄後）的下層/單層分類名稱，目前僅供參考，實際篩選共用 selectedCategories/ALL_CATEGORIES
 
 // 附錄：特定幾個上層分類（人名/地名/交通站名等查閱性質的清單，不是語意分類）改放在側邊欄
 // 「分類」選單下方獨立的「附錄」選單，詞條卡片上對應的標籤文字也從「分類」改成「附錄」。
 let appendixSectionOpen = false;
 let APPENDIX_TREE = []; // 附錄側邊欄用，結構同 CATEGORY_TREE
-let APPENDIX_CATEGORY_NAMES = []; // 「附錄」選單自己的「全部」勾選用
+let APPENDIX_CATEGORY_NAMES = []; // 「附錄」選單的分類名稱，目前僅供參考，實際篩選共用 selectedCategories/ALL_CATEGORIES
 const APPENDIX_PARENT_NAMES = new Set(['百家姓', '節氣', '外來詞', '俗諺（依首字筆畫排序）', '地名', '臺灣縣市鄉鎮區名', '火車線站名', '捷運線站名']);
 
 // 附錄「方言差」群組：語音比較（Lemmata.csv「方言差」欄位）／詞彙比較（Senses.csv「方言差」欄位）
@@ -1101,9 +1101,13 @@ async function loadData() {
     ALL_CATEGORIES = [...categorySet].sort();
     // 「方言差」虛擬上層分類（語音比較/詞彙比較）：不是真正的「分類」CSV欄位值，是根據
     // lemma.pronDiff／senses.dialDiff是否有值虛擬出來的可篩選項目，併入同一套
-    // selectedCategories記帳機制，才能沿用既有分類/附錄的篩選跟「全部」邏輯（見下方 DIAL_FILTER_NAMES）。
+    // selectedCategories記帳機制，才能沿用既有分類/附錄的篩選邏輯（見下方 DIAL_FILTER_NAMES）。
     ALL_CATEGORIES = ALL_CATEGORIES.concat(DIAL_FILTER_NAMES);
-    selectedCategories = new Set(ALL_CATEGORIES);
+    // selectedCategories代表「使用者主動勾選、要縮限顯示範圍」的項目：預設是空集合，
+    // 代表「沒有主動篩選」＝顯示全部（而不是預先把所有項目都塞進去再讓使用者去扣除）。
+    // 這樣「全部」永遠等同「一個都沒勾」，使用者一勾選任何一個次項目，就自然只篩出該項目，
+    // 不會有「其他項目其實還殘留著」的問題。
+    selectedCategories = new Set();
 
     // 分類側邊欄：把下層分類依CATEGORY_PARENTS歸類到各自的上層分類群組；
     // 沒有對應上層的（目前只有「外來詞」「節氣」）當作獨立單層項目，跟各上層群組
@@ -1232,14 +1236,14 @@ async function loadData() {
 // 分類篩選（詞目層級，分類欄以 | 分隔多值）
 // ══════════════════════════════════════════════════════════════════
 function entryPassesCategoryFilter(e) {
-  if (selectedCategories.size >= ALL_CATEGORIES.length) return true;
+  if (selectedCategories.size === 0) return true; // 沒有主動勾選任何項目＝不篩選，顯示全部
   if (selectedCategories.has('語音比較') && entryHasPronCompare(e)) return true;
   if (selectedCategories.has('詞彙比較') && entryHasVocabCompare(e)) return true;
   if (!e.categories.length) return false;
   return e.categories.some(c => selectedCategories.has(c));
 }
 function getVisibleEntries() {
-  if (selectedCategories.size >= ALL_CATEGORIES.length) return entries;
+  if (selectedCategories.size === 0) return entries;
   return entries.filter(entryPassesCategoryFilter);
 }
 
@@ -1274,27 +1278,32 @@ function buildSidebar() {
     `<button class="az-btn ${l === activeLetter ? 'active' : ''}" id="az-${l}" onclick="switchLetter('${l}')">${l.toUpperCase()}</button>`
   ).join('') + `</div>`;
 
+  // 「分類」跟「附錄」的篩選其實是同一套 selectedCategories（跨兩個選單的OR條件，任何一個
+  // 分類/附錄項目被勾選就算符合），所以兩邊的「全部」也必須是同一個開關：一律代表「清空」
+  // selectedCategories，不能只清空自己這半邊——否則另一半仍有殘留勾選，會蓋過使用者只想篩
+  // 某一邊的意圖。「沒有勾選任何項目」跟「全部」是同一個狀態（見 selectedCategories 初始化
+  // 處的說明），所以「全部」永遠顯示成selectedCategories.size===0；使用者一勾選任何一個
+  // 項目，就自然從「顯示全部」變成「只顯示該項目」，不會有其他項目其實還殘留選取的問題。
   html += `<div class="sb-divider"></div>`;
-  const allCatSel = CATEGORY_ONLY_NAMES.length > 0 && CATEGORY_ONLY_NAMES.every(c => selectedCategories.has(c));
+  const allSel = selectedCategories.size === 0;
   html += `<div class="sb-sec-hdr" onclick="toggleCategorySection()">
     分類
     <span class="sb-arrow">${categorySectionOpen ? '▾' : '▸'}</span>
   </div>
   <div class="sb-sec-body ${categorySectionOpen ? '' : 'closed'}">
-    <div class="sb-all-row ${allCatSel ? 'sel' : ''}" onclick="toggleAllCategories()">
-      <div class="sb-chk ${allCatSel ? 'sel' : ''}">${allCatSel ? '✓' : ''}</div>
+    <div class="sb-all-row ${allSel ? 'sel' : ''}" onclick="toggleAllCategories()">
+      <div class="sb-chk ${allSel ? 'sel' : ''}">${allSel ? '✓' : ''}</div>
       <span>全部</span>
     </div>` + renderCategoryTreeHtml(CATEGORY_TREE) + `</div>`;
 
   html += `<div class="sb-divider"></div>`;
-  const allAppSel = APPENDIX_CATEGORY_NAMES.length > 0 && APPENDIX_CATEGORY_NAMES.every(c => selectedCategories.has(c));
   html += `<div class="sb-sec-hdr" onclick="toggleAppendixSection()">
     附錄
     <span class="sb-arrow">${appendixSectionOpen ? '▾' : '▸'}</span>
   </div>
   <div class="sb-sec-body ${appendixSectionOpen ? '' : 'closed'}">
-    <div class="sb-all-row ${allAppSel ? 'sel' : ''}" onclick="toggleAllAppendix()">
-      <div class="sb-chk ${allAppSel ? 'sel' : ''}">${allAppSel ? '✓' : ''}</div>
+    <div class="sb-all-row ${allSel ? 'sel' : ''}" onclick="toggleAllAppendix()">
+      <div class="sb-chk ${allSel ? 'sel' : ''}">${allSel ? '✓' : ''}</div>
       <span>全部</span>
     </div>` + renderCategoryTreeHtml(APPENDIX_TREE) + `</div>`;
 
@@ -1361,20 +1370,16 @@ function toggleCategory(cat) {
   else selectedCategories.add(cat);
   refreshAfterFilterChange();
 }
-// 「分類」跟「附錄」選單各自的「全部」勾選只作用在自己選單範圍內的分類名稱，
-// 不會互相影響對方選單的勾選狀態（實際篩選仍共用同一個 selectedCategories）。
-function toggleAllCategories() {
-  const allSel = CATEGORY_ONLY_NAMES.length > 0 && CATEGORY_ONLY_NAMES.every(c => selectedCategories.has(c));
-  if (allSel) CATEGORY_ONLY_NAMES.forEach(c => selectedCategories.delete(c));
-  else CATEGORY_ONLY_NAMES.forEach(c => selectedCategories.add(c));
+// 「分類」跟「附錄」的實際篩選是同一套 selectedCategories（見 buildSidebar 裡的說明），
+// 所以兩邊的「全部」必須是同一個開關，清空的是整個 selectedCategories，不能只動自己這半邊，
+// 否則另一半仍有殘留勾選會蓋過使用者只想篩某一邊的意圖。「全部」＝清空篩選（等同沒有勾選
+// 任何項目，見上方 selectedCategories 初始化的說明），不是把每個項目都明確勾成選取狀態。
+function toggleAllSelection() {
+  selectedCategories.clear();
   refreshAfterFilterChange();
 }
-function toggleAllAppendix() {
-  const allSel = APPENDIX_CATEGORY_NAMES.length > 0 && APPENDIX_CATEGORY_NAMES.every(c => selectedCategories.has(c));
-  if (allSel) APPENDIX_CATEGORY_NAMES.forEach(c => selectedCategories.delete(c));
-  else APPENDIX_CATEGORY_NAMES.forEach(c => selectedCategories.add(c));
-  refreshAfterFilterChange();
-}
+function toggleAllCategories() { toggleAllSelection(); }
+function toggleAllAppendix() { toggleAllSelection(); }
 function toggleCategoryGroupExpand(parentName) {
   if (openCategoryGroups.has(parentName)) openCategoryGroups.delete(parentName);
   else openCategoryGroups.add(parentName);
@@ -1482,7 +1487,7 @@ function renderSenseSection(lemma) {
   // 「詞彙比較」篩選是senses階層的：filter有實際縮限（不是預設全選）且勾選了「詞彙比較」時，
   // 只在該詞條「本身確實有」詞彙比較資料的義項時才narrow down（避免因其他分類而顯示、
   // 但本身沒有詞彙比較資料的詞條，義項被整個濾空）。詞條卡片其餘顯示位置不受影響。
-  const dialFilterActive = selectedCategories.size < ALL_CATEGORIES.length && selectedCategories.has('詞彙比較');
+  const dialFilterActive = selectedCategories.has('詞彙比較');
   if (dialFilterActive) {
     const qualifying = senses.filter(s => s.dialDiff && s.dialDiff.trim());
     if (qualifying.length) senses = qualifying;
@@ -2046,7 +2051,7 @@ function jumpToLemma(lemmaId) {
   };
   if (inCurrentPage && !searchQuery) { doScroll(); return; }
   searchQuery = ''; const input = document.getElementById('searchInput'); if (input) input.value = '';
-  if (selectedCategories.size < ALL_CATEGORIES.length) selectedCategories = new Set(ALL_CATEGORIES);
+  if (selectedCategories.size > 0) selectedCategories.clear(); // 確保跳轉目標的詞條不會被目前的分類篩選擋住
   const lemmaLetter = getLetterKey(lemma);
   const letterEntries = entries.filter(e => getLetterKey(e) === lemmaLetter);
   const idx = letterEntries.findIndex(e => e.id === lemmaId);
@@ -2254,7 +2259,7 @@ function toggleScope(kind) {
 function clearSearchFilters() {
   searchQuery = ''; searchExact = false;
   searchScope = { lemma: true, sense: true, example: true };
-  selectedCategories = new Set(ALL_CATEGORIES);
+  selectedCategories.clear();
   document.getElementById('searchInput').value = '';
   document.getElementById('scope-exact').classList.remove('active');
   document.getElementById('scope-lemma').classList.add('active');
