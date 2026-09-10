@@ -710,7 +710,27 @@ let ALL_CATEGORIES = [];
 let selectedCategories = new Set();
 let categorySectionOpen = false;
 let CATEGORY_TREE = []; // 分類側邊欄用：[{type:'group',name:上層,children:[下層...]} | {type:'leaf',name:單層分類}]
-let openCategoryGroups = new Set(); // 目前展開中的上層分類名稱
+let openCategoryGroups = new Set(); // 目前展開中的上層分類名稱（分類、附錄共用同一個Set，因為上層名稱不會重複）
+let CATEGORY_ONLY_NAMES = []; // 「分類」選單自己的「全部」勾選用：扣掉附錄後的下層/單層分類名稱
+
+// 附錄：特定幾個上層分類（人名/地名/交通站名等查閱性質的清單，不是語意分類）改放在側邊欄
+// 「分類」選單下方獨立的「附錄」選單，詞條卡片上對應的標籤文字也從「分類」改成「附錄」。
+let appendixSectionOpen = false;
+let APPENDIX_TREE = []; // 附錄側邊欄用，結構同 CATEGORY_TREE
+let APPENDIX_CATEGORY_NAMES = []; // 「附錄」選單自己的「全部」勾選用
+const APPENDIX_PARENT_NAMES = new Set(['百家姓', '節氣', '外來詞', '俗諺（依首字筆畫排序）', '地名', '臺灣縣市鄉鎮區名', '火車線站名', '捷運線站名']);
+
+// 附錄「方言差」群組：語音比較（Lemmata.csv「方言差」欄位）／詞彙比較（Senses.csv「方言差」欄位）
+// 併入同一套側邊欄分類篩選機制，但兩者的判斷/篩選層級不同——見 entryHasPronCompare / entryHasVocabCompare。
+// 卡片上原本的語音比較／詞彙比較徽章顯示方式跟位置完全不受影響，這裡只新增左側篩選功能。
+const DIAL_FILTER_NAMES = ['語音比較', '詞彙比較'];
+function entryHasPronCompare(e) {
+  return !!(e.pronDiff && e.pronDiff.trim());
+}
+function entryHasVocabCompare(e) {
+  const senses = sensesByLemma[e.id];
+  return !!senses && senses.some(s => s.dialDiff && s.dialDiff.trim());
+}
 
 // 分類（下層）→上層對照表。除「外來詞」「節氣」本身就只有一層（不在此表中）以外，
 // 其餘每個下層分類都對應唯一一個上層分類。
@@ -1079,6 +1099,10 @@ async function loadData() {
     entries.sort(compareEntries);
     computeHomographIndices();
     ALL_CATEGORIES = [...categorySet].sort();
+    // 「方言差」虛擬上層分類（語音比較/詞彙比較）：不是真正的「分類」CSV欄位值，是根據
+    // lemma.pronDiff／senses.dialDiff是否有值虛擬出來的可篩選項目，併入同一套
+    // selectedCategories記帳機制，才能沿用既有分類/附錄的篩選跟「全部」邏輯（見下方 DIAL_FILTER_NAMES）。
+    ALL_CATEGORIES = ALL_CATEGORIES.concat(DIAL_FILTER_NAMES);
     selectedCategories = new Set(ALL_CATEGORIES);
 
     // 分類側邊欄：把下層分類依CATEGORY_PARENTS歸類到各自的上層分類群組；
@@ -1097,7 +1121,14 @@ async function loadData() {
     const topLevel = Object.keys(groups).map(p => ({ type: 'group', name: p, children: [...groups[p]].sort() }))
       .concat(standalone.map(s => ({ type: 'leaf', name: s })));
     topLevel.sort((a, b) => a.name < b.name ? -1 : (a.name > b.name ? 1 : 0));
-    CATEGORY_TREE = topLevel;
+    // 「附錄」：查閱性質的清單（人名/地名/交通站名等），跟語意分類分開放到獨立選單/標籤。
+    CATEGORY_TREE = topLevel.filter(n => !APPENDIX_PARENT_NAMES.has(n.name));
+    APPENDIX_TREE = topLevel.filter(n => APPENDIX_PARENT_NAMES.has(n.name));
+    const flattenTree = tree => tree.reduce((acc, n) => acc.concat(n.type === 'leaf' ? [n.name] : n.children), []);
+    CATEGORY_ONLY_NAMES = flattenTree(CATEGORY_TREE);
+    // 「方言差」群組（語音比較/詞彙比較）固定加在附錄最下方，不參與字母排序。
+    APPENDIX_TREE = APPENDIX_TREE.concat([{ type: 'group', name: '方言差', children: DIAL_FILTER_NAMES.slice() }]);
+    APPENDIX_CATEGORY_NAMES = flattenTree(APPENDIX_TREE);
 
     // ── Senses ──
     sensesByLemma = {};
@@ -1202,6 +1233,8 @@ async function loadData() {
 // ══════════════════════════════════════════════════════════════════
 function entryPassesCategoryFilter(e) {
   if (selectedCategories.size >= ALL_CATEGORIES.length) return true;
+  if (selectedCategories.has('語音比較') && entryHasPronCompare(e)) return true;
+  if (selectedCategories.has('詞彙比較') && entryHasVocabCompare(e)) return true;
   if (!e.categories.length) return false;
   return e.categories.some(c => selectedCategories.has(c));
 }
@@ -1242,7 +1275,7 @@ function buildSidebar() {
   ).join('') + `</div>`;
 
   html += `<div class="sb-divider"></div>`;
-  const allCatSel = ALL_CATEGORIES.length > 0 && selectedCategories.size >= ALL_CATEGORIES.length;
+  const allCatSel = CATEGORY_ONLY_NAMES.length > 0 && CATEGORY_ONLY_NAMES.every(c => selectedCategories.has(c));
   html += `<div class="sb-sec-hdr" onclick="toggleCategorySection()">
     分類
     <span class="sb-arrow">${categorySectionOpen ? '▾' : '▸'}</span>
@@ -1251,10 +1284,30 @@ function buildSidebar() {
     <div class="sb-all-row ${allCatSel ? 'sel' : ''}" onclick="toggleAllCategories()">
       <div class="sb-chk ${allCatSel ? 'sel' : ''}">${allCatSel ? '✓' : ''}</div>
       <span>全部</span>
-    </div>`;
-  CATEGORY_TREE.forEach(node => {
+    </div>` + renderCategoryTreeHtml(CATEGORY_TREE) + `</div>`;
+
+  html += `<div class="sb-divider"></div>`;
+  const allAppSel = APPENDIX_CATEGORY_NAMES.length > 0 && APPENDIX_CATEGORY_NAMES.every(c => selectedCategories.has(c));
+  html += `<div class="sb-sec-hdr" onclick="toggleAppendixSection()">
+    附錄
+    <span class="sb-arrow">${appendixSectionOpen ? '▾' : '▸'}</span>
+  </div>
+  <div class="sb-sec-body ${appendixSectionOpen ? '' : 'closed'}">
+    <div class="sb-all-row ${allAppSel ? 'sel' : ''}" onclick="toggleAllAppendix()">
+      <div class="sb-chk ${allAppSel ? 'sel' : ''}">${allAppSel ? '✓' : ''}</div>
+      <span>全部</span>
+    </div>` + renderCategoryTreeHtml(APPENDIX_TREE) + `</div>`;
+
+  sidebar.innerHTML = html;
+}
+
+// 「分類」「附錄」兩個選單的上層/下層項目渲染邏輯完全相同（只是資料來源、外層「全部」
+// 勾選對象不同），共用同一段渲染函式，各自傳入自己的樹（CATEGORY_TREE / APPENDIX_TREE）。
+function renderCategoryTreeHtml(tree) {
+  let html = '';
+  tree.forEach(node => {
     if (node.type === 'leaf') {
-      // 單層分類（目前只有「外來詞」「節氣」）：跟上層分類群組同一層，沒有展開箭頭。
+      // 單層分類（目前只有「外來詞」「節氣」，兩者都在附錄裡）：跟上層分類群組同一層，沒有展開箭頭。
       const sel = selectedCategories.has(node.name);
       html += `<div class="sb-l1-item ${sel ? 'sel' : ''}" onclick="toggleCategory('${node.name.replace(/'/g, "\\'")}')">
         <div class="sb-chk ${sel ? 'sel' : ''}">${sel ? '✓' : ''}</div>
@@ -1280,9 +1333,7 @@ function buildSidebar() {
       });
     }
   });
-  html += `</div>`;
-
-  sidebar.innerHTML = html;
+  return html;
 }
 
 function setWordOrder(val) {
@@ -1304,14 +1355,24 @@ function setRomSystem(val) {
 }
 function toggleAzSection() { azSectionOpen = !azSectionOpen; buildSidebar(); }
 function toggleCategorySection() { categorySectionOpen = !categorySectionOpen; buildSidebar(); }
+function toggleAppendixSection() { appendixSectionOpen = !appendixSectionOpen; buildSidebar(); }
 function toggleCategory(cat) {
   if (selectedCategories.has(cat)) selectedCategories.delete(cat);
   else selectedCategories.add(cat);
   refreshAfterFilterChange();
 }
+// 「分類」跟「附錄」選單各自的「全部」勾選只作用在自己選單範圍內的分類名稱，
+// 不會互相影響對方選單的勾選狀態（實際篩選仍共用同一個 selectedCategories）。
 function toggleAllCategories() {
-  if (selectedCategories.size >= ALL_CATEGORIES.length) selectedCategories.clear();
-  else ALL_CATEGORIES.forEach(c => selectedCategories.add(c));
+  const allSel = CATEGORY_ONLY_NAMES.length > 0 && CATEGORY_ONLY_NAMES.every(c => selectedCategories.has(c));
+  if (allSel) CATEGORY_ONLY_NAMES.forEach(c => selectedCategories.delete(c));
+  else CATEGORY_ONLY_NAMES.forEach(c => selectedCategories.add(c));
+  refreshAfterFilterChange();
+}
+function toggleAllAppendix() {
+  const allSel = APPENDIX_CATEGORY_NAMES.length > 0 && APPENDIX_CATEGORY_NAMES.every(c => selectedCategories.has(c));
+  if (allSel) APPENDIX_CATEGORY_NAMES.forEach(c => selectedCategories.delete(c));
+  else APPENDIX_CATEGORY_NAMES.forEach(c => selectedCategories.add(c));
   refreshAfterFilterChange();
 }
 function toggleCategoryGroupExpand(parentName) {
@@ -1320,7 +1381,8 @@ function toggleCategoryGroupExpand(parentName) {
   buildSidebar();
 }
 function toggleCategoryGroupAll(parentName) {
-  const node = CATEGORY_TREE.find(n => n.type === 'group' && n.name === parentName);
+  const node = CATEGORY_TREE.find(n => n.type === 'group' && n.name === parentName)
+    || APPENDIX_TREE.find(n => n.type === 'group' && n.name === parentName);
   if (!node) return;
   const allSel = node.children.every(c => selectedCategories.has(c));
   if (allSel) node.children.forEach(c => selectedCategories.delete(c));
@@ -1370,8 +1432,10 @@ function buildCategoryLinesHtml(e) {
   if (!e.categories || !e.categories.length) return '';
   return e.categories.map(c => {
     const parent = CATEGORY_PARENTS[c];
+    const topName = parent || c; // 沒有上層的（如外來詞/節氣）本身就是上層層級
+    const label = APPENDIX_PARENT_NAMES.has(topName) ? '附錄' : '分類';
     const text = parent ? `${escapeHtml(parent)} ＞ ${escapeHtml(c)}` : escapeHtml(c);
-    return `<div class="ety-block"><span class="pron-variant-label">分類</span>${text}</div>`;
+    return `<div class="ety-block"><span class="pron-variant-label">${label}</span>${text}</div>`;
   }).join('');
 }
 
@@ -1413,8 +1477,16 @@ function renderLemmaCard(e) {
 }
 
 function renderSenseSection(lemma) {
-  const senses = sensesByLemma[lemma.id];
+  let senses = sensesByLemma[lemma.id];
   if (!senses || !senses.length) return '';
+  // 「詞彙比較」篩選是senses階層的：filter有實際縮限（不是預設全選）且勾選了「詞彙比較」時，
+  // 只在該詞條「本身確實有」詞彙比較資料的義項時才narrow down（避免因其他分類而顯示、
+  // 但本身沒有詞彙比較資料的詞條，義項被整個濾空）。詞條卡片其餘顯示位置不受影響。
+  const dialFilterActive = selectedCategories.size < ALL_CATEGORIES.length && selectedCategories.has('詞彙比較');
+  if (dialFilterActive) {
+    const qualifying = senses.filter(s => s.dialDiff && s.dialDiff.trim());
+    if (qualifying.length) senses = qualifying;
+  }
   const multi = senses.length > 1;
 
   // 語源：仿造 HLDKor——若所有義項的語源欄位一字不差地相同，代表整個詞目共用同一個
